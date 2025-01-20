@@ -8,5 +8,5 @@ import datetime
 
 # print(find_current_weekday(date, "Thursday"))
 
-print(datetime.date.today())
-print(datetime.datetime.today())
+# print(datetime.date.today())
+# print(datetime.datetime.today())

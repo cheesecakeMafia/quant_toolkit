@@ -1,3 +1,6 @@
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [project]
 name = "quant-toolkit"
 version = "0.1.0"
@@ -8,11 +11,14 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "hatchling>=1.27.0",
     "line-profiler>=4.2.0",
     "lxml>=5.3.0",
     "pandas>=2.2.3",
     "polars>=1.19.0",
     "ruff>=0.9.1",
+    "setuptools>=75.8.0",
+    "wheel>=0.45.1",
 ]
 
 [build-system]

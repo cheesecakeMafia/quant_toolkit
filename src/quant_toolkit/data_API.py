@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import sqlite3
 import datetime
-from src.quant_toolkit.datetime_API import FNOExpiry
+from quant_toolkit.datetime_API import FNOExpiry
 
 """This file is a work in progress. Still need to decide on the DB of choice for storing time series data. 
     Torn between TimeScaleDB and sqlite3.
@@ -68,17 +68,8 @@ class SecurityDataHandler:
             return True
         return False
 
-    def _get_available_securities(self) -> List[str]:
-        """Retrieves a list of all available security symbols in the database."""
-        cursor = self.db_conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        symbols_in_db = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        return symbols_in_db
-
     def _security_first_datetime(self, symbol: str) -> datetime.datetime:
         """Retrieves the earliest datetime available for the data of a given security symbol."""
-        assert symbol, print("You need to pass a symbol to get the date for.")
         if self._symbol_exists(symbol):
             cursor = self.db_conn.cursor()
             if cursor.fetchone() is None:
@@ -97,7 +88,6 @@ class SecurityDataHandler:
 
     def _security_latest_datetime(self, symbol: str) -> datetime.datetime:
         """Retrieves the most recent datetime available for a given security symbol."""
-        assert symbol, print("You need to pass a symbol to get the date for.")
         if self._symbol_exists(symbol):
             cursor = self.db_conn.cursor()
             if cursor.fetchone() is None:
@@ -126,11 +116,21 @@ class SecurityDataHandler:
                 return FNOExpiry().stock_current_month_fut_expiry(symbol)
         return symbol
 
+    def get_available_securities(self) -> List[str]:
+        """Retrieves a list of all available security symbols in the database."""
+        if self.database_exists():
+            cursor = self.db_conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            symbols_in_db = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+            return symbols_in_db
+        return []
+
     def get_security_data(
         self,
         symbol: str,
-        start_datetime: Union[int | None | str | datetime.datetime] = None,
-    ) -> pd.DataFrame:
+        start_datetime: Union[int, None, str, datetime.datetime] = None,
+    ) -> Union[pd.DataFrame, None]:
         """
         Retrieves security data for a given symbol from a specified start date.
 
@@ -260,6 +260,11 @@ class SecurityDataHandler:
             )
         return
 
+    def database_exists(self) -> bool:
+        if not os.path.isfile(self.db_path):
+            return False
+        return True
+
 
 class DBPaths:
     """This class provides the file paths of the respective databases and the list of symbols to pull."""
@@ -274,7 +279,7 @@ class DBPaths:
     def get_stocks_symbols(self) -> List[str]:
         """Returns a list of symbols for the category of security from either the DB or from saved csv"""
         if os.path.isfile(self.stocks_db_path):
-            return SecurityDataHandler(self.stocks_db_path).get_available_symbols()
+            return SecurityDataHandler(self.stocks_db_path).get_available_securities()
 
         df = pd.read_csv(r"/home/cheesecake/Downloads/fyers/utils/nse_500_stocks.csv")
         return df["Ticker"].to_list()
@@ -282,7 +287,7 @@ class DBPaths:
     def get_index_symbols(self) -> List[str]:
         """Returns a list of symbols for the category of security from either the DB or from saved csv"""
         if os.path.isfile(self.index_db_path):
-            return SecurityDataHandler(self.index_db_path).get_available_symbols()
+            return SecurityDataHandler(self.index_db_path).get_available_securities()
 
         df = pd.read_csv(r"/home/cheesecake/Downloads/fyers/utils/nse_index.csv")
         return df["Ticker"].to_list()
@@ -290,7 +295,7 @@ class DBPaths:
     def get_futures_symbols(self) -> List[str]:
         """Returns a list of symbols for the category of security from either the DB or from saved csv"""
         if os.path.isfile(self.futures_db_path):
-            return SecurityDataHandler(self.futures_db_path).get_available_symbols()
+            return SecurityDataHandler(self.futures_db_path).get_available_securities()
 
         df = pd.read_csv(
             r"/home/cheesecake/Downloads/fyers/utils/nse_fyers_futures.csv"
