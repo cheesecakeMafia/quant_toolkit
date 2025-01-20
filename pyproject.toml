@@ -7,7 +7,13 @@ authors = [
     { name = "cheesecakeMafia", email = "f2013359@gmail.com" }
 ]
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "line-profiler>=4.2.0",
+    "lxml>=5.3.0",
+    "pandas>=2.2.3",
+    "polars>=1.19.0",
+    "ruff>=0.9.1",
+]
 
 [build-system]
 requires = ["hatchling"]
