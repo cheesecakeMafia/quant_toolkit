@@ -77,3 +77,18 @@ def slow_down(_func=None, delay: int = 1):
         return decorator
     else:
         return decorator(_func)
+
+
+def memoize(func: Callable) -> Callable:
+    """Store the result of the function call in a cache"""
+
+    cache = {}
+
+    @wraps(func)
+    def wrapper_memoize(*args, **kwargs):
+        key = str(args) + str(kwargs)
+        if key not in cache:
+            cache[key] = func(*args, **kwargs)
+        return cache[key]
+
+    return wrapper_memoize
