@@ -105,7 +105,7 @@ class SecurityDataHandler:
             return datetime.datetime.now()
 
     def _convert_symbol_to_ticker(self, symbol: str) -> str:
-        if "FUT" in symbol:
+        if "FUT-I" == symbol[-5:]:
             if "NSE:BANKNIFTY" in symbol:
                 return FNOExpiry().banknifty_current_month_fut_expiry()
             elif "NSE:FINNIFTY" in symbol:
@@ -114,6 +114,15 @@ class SecurityDataHandler:
                 return FNOExpiry().nifty_current_month_fut_expiry()
             else:
                 return FNOExpiry().stock_current_month_fut_expiry(symbol)
+        elif "FUT-II" == symbol[-6:]:
+            if "NSE:BANKNIFTY" in symbol:
+                return FNOExpiry().banknifty_next_month_fut_expiry()
+            elif "NSE:FINNIFTY" in symbol:
+                return FNOExpiry().finnifty_next_month_fut_expiry()
+            elif "NSE:NIFTY" in symbol:
+                return FNOExpiry().nifty_next_month_fut_expiry()
+            else:
+                return FNOExpiry().stock_next_month_fut_expiry(symbol)
         return symbol
 
     def get_available_securities(self) -> List[str]:
@@ -281,7 +290,9 @@ class DBPaths:
         if os.path.isfile(self.stocks_db_path):
             return SecurityDataHandler(self.stocks_db_path).get_available_securities()
 
-        df = pd.read_csv(r"/home/cheesecake/Downloads/fyers/utils/nse_500_stocks.csv")
+        df = pd.read_csv(
+            r"/home/cheesecake/Downloads/fyers/src/fyers/utils/nse_stocks.csv"
+        )
         return df["Ticker"].to_list()
 
     def get_index_symbols(self) -> List[str]:
@@ -289,7 +300,9 @@ class DBPaths:
         if os.path.isfile(self.index_db_path):
             return SecurityDataHandler(self.index_db_path).get_available_securities()
 
-        df = pd.read_csv(r"/home/cheesecake/Downloads/fyers/utils/nse_index.csv")
+        df = pd.read_csv(
+            r"/home/cheesecake/Downloads/fyers/src/fyers/utils/nse_index.csv"
+        )
         return df["Ticker"].to_list()
 
     def get_futures_symbols(self) -> List[str]:
@@ -298,7 +311,7 @@ class DBPaths:
             return SecurityDataHandler(self.futures_db_path).get_available_securities()
 
         df = pd.read_csv(
-            r"/home/cheesecake/Downloads/fyers/utils/nse_fyers_futures.csv"
+            r"/home/cheesecake/Downloads/fyers/src/fyers/utils/nse_futures.csv"
         )
         return df["Ticker"].to_list()
 
