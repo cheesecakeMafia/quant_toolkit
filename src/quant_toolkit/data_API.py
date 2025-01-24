@@ -19,22 +19,17 @@ class SecurityDataHandler:
             | datetime(index) | open | high | low | close | volume | oi(optional) |
 
 
-    Attributes:
+    Args:
         db_path (Path): Path to the SQLite database file.
 
 
-    Methods:
-        _security_first_datetime(symbol: str) -> datetime.datetime:
-
-        _security_latest_datetime(symbol: str) -> datetime.datetime:
-
-        get_security_data(symbol: str, start_date: Union[int | None | str | datetime.datetime] = None) -> pd.DataFrame:
-
-        get_available_symbols() -> List[str]:
-
-        delete_security(symbol: str) -> None:
-
-        delete_security_from_date(symbol: str, from_date: Union[int | None | str | datetime.datetime] = 252) -> None:
+    Methods(Public):
+        get_available_securities() -> List[str]: Retrieves a list of all available security symbols in the database.
+        get_security_data(symbol: str, start_datetime: Union[int, None, str, datetime.datetime] = None) -> Union[pd.DataFrame, None]: Retrieves security data for a given symbol from a specified start date.
+        delete_security(symbol: str) -> None: Deleted the whole table for the security symbol from the database.
+        delete_security_from_date(symbol: str, from_datetime: Union[int | None | str | datetime.datetime] = 252) -> None: Deletes the data from table of the particular security from the passed date or for the last x days if type is int.
+        check_db_integrity(year: Union[int | str] = datetime.datetime.now().year - 3, log_csv=False, delete_symbol=False) -> None: This method will show all the securities which have data for time less than the arg years. You could also save them in a .csv file and could further delete them from the universe.
+        database_exists() -> bool: Checks if the database file exists or not.
     """
 
     def __init__(self, db_path: Path):
@@ -50,6 +45,16 @@ class SecurityDataHandler:
         if hasattr(self, "db_conn"):
             self.db_conn.close()
             print("We have successfully closed the DB connection.")
+
+    def __del__(self):
+        if hasattr(self, "db_conn"):
+            self.db_conn.close()
+            print("We have successfully closed the DB connection.")
+
+    def database_exists(self) -> bool:
+        if not os.path.isfile(self.db_path):
+            return False
+        return True
 
     def _symbol_exists(self, symbol: str) -> bool:
         if not os.path.isfile(self.db_path):
@@ -105,6 +110,7 @@ class SecurityDataHandler:
             return datetime.datetime.now()
 
     def _convert_symbol_to_ticker(self, symbol: str) -> str:
+        assert symbol, print("You need to pass a symbol to convert it to a ticker.")
         if "FUT-I" == symbol[-5:]:
             if "NSE:BANKNIFTY" in symbol:
                 return FNOExpiry().banknifty_current_month_fut_expiry()
@@ -133,6 +139,7 @@ class SecurityDataHandler:
             symbols_in_db = [row[0] for row in cursor.fetchall()]
             cursor.close()
             return symbols_in_db
+
         return []
 
     def get_security_data(
@@ -269,14 +276,13 @@ class SecurityDataHandler:
             )
         return
 
-    def database_exists(self) -> bool:
-        if not os.path.isfile(self.db_path):
-            return False
-        return True
-
 
 class DBPaths:
-    """This class provides the file paths of the respective databases and the list of symbols to pull."""
+    """This class provides the file paths of the respective databases and the list of symbols to pull.
+
+    Methods: get_stocks_symbols(), get_index_symbols(), get_futures_symbols()
+    Properties: stocks_db_path, index_db_path, futures_db_path
+    """
 
     def __init__(self):
         self.index_db_path = r"/home/cheesecake/Downloads/Data/index/index_data.db"
