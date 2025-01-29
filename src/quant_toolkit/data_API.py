@@ -34,17 +34,17 @@ class SecurityDataHandler:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
-        if not os.path.isfile(self.db_path):
-            raise FileNotFoundError(f"Database file '{self.db_path}' does not exist.")
+        # if not os.path.isfile(self.db_path):
+        #     raise FileNotFoundError(f"Database file '{self.db_path}' does not exist.")
         self.db_conn = sqlite3.connect(self.db_path)
 
-    def __enter__(self):
-        return self
+    # def __enter__(self):
+    #     return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if hasattr(self, "db_conn"):
-            self.db_conn.close()
-            print("We have successfully closed the DB connection.")
+    # def __exit__(self, exc_type, exc_val, exc_tb):
+    #     if hasattr(self, "db_conn"):
+    #         self.db_conn.close()
+    #         print("We have successfully closed the DB connection.")
 
     def __del__(self):
         if hasattr(self, "db_conn"):
@@ -57,7 +57,7 @@ class SecurityDataHandler:
         return True
 
     def _symbol_exists(self, symbol: str) -> bool:
-        if not os.path.isfile(self.db_path):
+        if not self.database_exists():
             return False
         cursor = self.db_conn.cursor()
         try:
@@ -77,8 +77,8 @@ class SecurityDataHandler:
         """Retrieves the earliest datetime available for the data of a given security symbol."""
         if self._symbol_exists(symbol):
             cursor = self.db_conn.cursor()
-            if cursor.fetchone() is None:
-                return datetime.datetime.now()
+            # if cursor.fetchone() is None:
+            #     return datetime.datetime.now()
             cursor.execute(f"SELECT * FROM '{symbol}' ORDER BY ROWID LIMIT 1")
             start_date = datetime.datetime.strptime(
                 cursor.fetchone()[0], "%Y-%m-%d %H:%M:%S"
@@ -95,8 +95,8 @@ class SecurityDataHandler:
         """Retrieves the most recent datetime available for a given security symbol."""
         if self._symbol_exists(symbol):
             cursor = self.db_conn.cursor()
-            if cursor.fetchone() is None:
-                return datetime.datetime.now()
+            # if cursor.fetchone() is None:
+            #     return datetime.datetime.now()
             cursor.execute(f"SELECT * FROM '{symbol}' ORDER BY ROWID DESC LIMIT 1")
             latest_date = datetime.datetime.strptime(
                 cursor.fetchone()[0], "%Y-%m-%d %H:%M:%S"

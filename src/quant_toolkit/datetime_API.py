@@ -4,6 +4,7 @@ import calendar
 import pandas as pd
 from typing import Union
 
+
 """
 /** 
 * ! This is in red. 
@@ -91,17 +92,15 @@ class DatetimeValidator:
             dt = dt - datetime.timedelta(days=1)
         return dt
 
-    def _find_current_weekday(
-        self, today_date: datetime.date, target_day: Union[int, str] = "Thursday"
+    def _find_current_expiry_day(
+        self, today_date: datetime.date, target_day: str = "Thursday"
     ) -> datetime.date:
         """
-        Find the date of the coming specified weekday.
+        Find the date of the coming nearest expiry specified weekday.
 
         Args:
             today_date (datetime.date): The reference date
-            target_day (int or str): Target weekday either as:
-                - int (0-6, where 0=Monday, 6=Sunday)
-                - str (full name like "Monday" or abbreviated "Mon")
+            target_day (str): Target weekday (full name like "Monday" or abbreviated "Mon")
 
         Returns:
             datetime.date: Date of the target weekday in the current week
@@ -110,19 +109,18 @@ class DatetimeValidator:
             ValueError: If target_day is invalid
         """
 
-        if isinstance(target_day, str):
-            day_str = target_day.lower()
-            if day_str not in self.WEEKDAY_MAP:
-                raise ValueError(
-                    "Invalid day string. Use full names (e.g., 'Monday') "
-                    "or three-letter abbreviations (e.g., 'Mon')"
-                )
-            target_day = self.WEEKDAY_MAP[day_str]
+        day_str = target_day.lower()
+        if day_str not in self.WEEKDAY_MAP:
+            raise ValueError(
+                "Invalid day string. Use full names (e.g., 'Monday') "
+                "or three-letter abbreviations (e.g., 'Mon')"
+            )
+        target_day = self.WEEKDAY_MAP[day_str]
 
         days_until = (target_day - today_date.weekday() + 7) % 7
         return today_date + datetime.timedelta(days=days_until)
 
-    def _find_next_weekday(
+    def _find_next_expiry_day(
         self, today_date: datetime.date, target_day: Union[int, str] = "Thursday"
     ) -> datetime.date:
         """
@@ -133,15 +131,15 @@ class DatetimeValidator:
             days=7
         )
 
-    def find_current_weekly_expiry(
+    def find_current_week_expiry(
         self, today_date: datetime.date, target_day: str = "Thursday"
     ) -> datetime.date:
         """
         Find the date of the weekly expiry of the current week.
         """
-        return self._find_current_weekday(today_date, target_day)
+        return self._find_current_expiry_day(today_date, target_day)
 
-    def find_next_weekly_expiry(
+    def find_next_week_expiry(
         self, today_date: datetime.date, target_day: str = "Thursday"
     ) -> datetime.date:
         """
@@ -151,9 +149,9 @@ class DatetimeValidator:
             days=7
         )
 
-    def _get_last_thursday(self, year, month, target_day="Thursday") -> datetime.date:
+    def _get_last_day_month(self, year, month, target_day="Thursday") -> datetime.date:
         """
-        Get the last thursday of the month.
+        Get the last target_day of the month.
         # To get the last working Thursday of the month, we use index 3. Mon-Sun -> 0-6 is the mapping.
         """
         day_idx = self.WEEKDAY_MAP[target_day.lower()]
@@ -161,10 +159,10 @@ class DatetimeValidator:
             year,
             month,
             (
-                calendar.monthcalendar(year, month)[-1]
+                calendar.monthcalendar(year, month)[-1][day_idx]
                 if calendar.monthcalendar(year, month)[-1][day_idx] != 0
-                else calendar.monthcalendar(year, month)[-2]
-            )[3],
+                else calendar.monthcalendar(year, month)[-2][day_idx]
+            ),
         )
 
     def find_current_monthly_expiry(
@@ -175,14 +173,14 @@ class DatetimeValidator:
         """
         _year = today_date.year
         _month = today_date.month
-        last_thu = self._get_last_thursday(_year, _month, target_day)
-        if last_thu > today_date:
+        last_thu = self._get_last_day_month(_year, _month, target_day)
+        if last_thu >= today_date:
             return last_thu
         _month += 1
         if _month > 12:
             _month = _month - 12
             _year += 1
-        last_thu = self._get_last_thursday(_year, _month, target_day)
+        last_thu = self._get_last_day_month(_year, _month, target_day)
         return last_thu
 
     def find_next_monthly_expiry(
@@ -196,14 +194,14 @@ class DatetimeValidator:
         if _month > 12:
             _month = _month - 12
             _year += 1
-        last_thu = self._get_last_thursday(_year, _month, target_day)
+        last_thu = self._get_last_day_month(_year, _month, target_day)
         if last_thu > self.find_current_monthly_expiry(today_date, target_day):
             return last_thu
         _month += 1
         if _month > 12:
             _month = _month - 12
             _year += 1
-        last_thu = self._get_last_thursday(_year, _month, target_day)
+        last_thu = self._get_last_day_month(_year, _month, target_day)
         return last_thu
 
     def validate_expiry(self, expiry_date: datetime.date) -> datetime.date:
@@ -260,154 +258,37 @@ class FNOExpiry(DatetimeValidator):
             "DEC": "D",
         }
 
-    """Index futures expiry"""
+    """Futures expiry contract(Testing Done!)"""
 
-    def banknifty_current_month_fut_expiry(
-        self,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        """
-        today_date = self._validate_holiday(today_date)
-        today_date = self._validate_weekday(today_date)
-        _year, _month, _day = today_date.year, today_date.month, today_date.day
-        if _day <= max(
-            week[3] for week in calendar.monthcalendar(_year, _month)
-        ):  # 3 is for Thursday and 2 is for Wednesday. [Mon, Sun] -> [0,6] mapping
-            _month = _month
-        else:
-            _month = _month + 1
-        if _month > 12:
-            _month = _month - 12
-            _year = _year + 1
-        expiry_date = datetime.date(_year, _month, _day)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:BANKNIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + "FUT"
-        )"""
-
-        expiry_date = self.find_current_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:BANKNIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + "FUT"
-        )
-
-    def banknifty_next_month_fut_expiry(
-        self,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        """today_date = self._validate_holiday(today_date)
-        today_date = self._validate_weekday(today_date)
-        _year, _month, _day = today_date.year, today_date.month, today_date.day
-        if _day <= max(
-            week[3] for week in calendar.monthcalendar(_year, _month)
-        ):  # 3 is for Thursday and 2 is for Wednesday. [Mon, Sun] -> [0,6] mapping
-            _month = _month + 1
-        else:
-            _month = _month + 2
-        if _month > 12:
-            _month = _month - 12
-            _year = _year + 1
-        expiry_date = datetime.date(_year, _month, _day)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:BANKNIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + "FUT"
-        )"""
-
-        expiry_date = self.find_next_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:BANKNIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + "FUT"
-        )
-
-    def nifty_current_month_fut_expiry(
-        self,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        expiry_date = self.find_current_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY" + str(_year)[-2:] + calendar.month_abbr[_month].upper() + "FUT"
-        )
-
-    def nifty_next_month_fut_expiry(
-        self,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        expiry_date = self.find_next_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY" + str(_year)[-2:] + calendar.month_abbr[_month].upper() + "FUT"
-        )
-
-    def index_current_month_fut_expiry(
+    def current_month_fut_expiry(
         self, symbol: str, today_date: datetime.date = datetime.date.today()
     ) -> str:
-        expiry_date = self.find_current_monthly_expiry(today_date)
+        assert "FUT" in symbol, print("The symbol should be a future symbol.")
+        if "BSE" in symbol:
+            expiry_date = self.find_current_monthly_expiry(today_date, "Tuesday")
+        else:
+            expiry_date = self.find_current_monthly_expiry(today_date, "Thursday")
         expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        _symbol = symbol.split("-")[0]
+        _year, _month = expiry_date.year, expiry_date.month
+        _symbol = symbol.split("-")[0].upper()
         return _symbol + str(_year)[-2:] + calendar.month_abbr[_month].upper() + "FUT"
 
-    def index_next_month_fut_expiry(
+    def next_month_fut_expiry(
         self,
         symbol: str,
         today_date: datetime.date = datetime.date.today(),
     ) -> str:
-        expiry_date = self.find_next_monthly_expiry(today_date)
+        assert "FUT" in symbol, print("The symbol should be a future symbol.")
+        if "BSE" in symbol:
+            expiry_date = self.find_next_monthly_expiry(today_date, "Tuesday")
+        else:
+            expiry_date = self.find_next_monthly_expiry(today_date, "Thursday")
         expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        _symbol = symbol.split("-")[0]
+        _year, _month = expiry_date.year, expiry_date.month
+        _symbol = symbol.split("-")[0].upper()
         return _symbol + str(_year)[-2:] + calendar.month_abbr[_month].upper() + "FUT"
 
-    """Stock futures expiry"""
-
-    def stock_current_month_fut_expiry(
-        self, stock_symbol: str, today_date: datetime.date = datetime.date.today()
-    ) -> str:
-        expiry_date = self.find_current_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            f"{stock_symbol.upper()[:-4]}"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + "FUT"
-        )
-
-    def stock_next_month_fut_expiry(
-        self,
-        stock_symbol: str,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        expiry_date = self.find_next_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            f"{stock_symbol.upper()[:-4]}"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + "FUT"
-        )
-
-    """Index options monthly expiry"""
+    """Index monthly options expiry contract(Testing Required!)"""
 
     def index_current_month_opt_expiry(
         self,
@@ -416,9 +297,13 @@ class FNOExpiry(DatetimeValidator):
         opt_type: str,
         today_date: datetime.date = datetime.date.today(),
     ) -> str:
-        expiry_date = self.find_current_monthly_expiry(today_date)
+        assert "INDEX" in symbol, print("The symbol should be of a valid Index.")
+        if "BSE" in symbol:
+            expiry_date = self.find_current_monthly_expiry(today_date, "Tuesday")
+        else:
+            expiry_date = self.find_current_monthly_expiry(today_date, "Thursday")
         expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
+        _year, _month = expiry_date.year, expiry_date.month
         _symbol = symbol.split("-")[0]
         return (
             _symbol
@@ -435,9 +320,13 @@ class FNOExpiry(DatetimeValidator):
         opt_type: str,
         today_date: datetime.date = datetime.date.today(),
     ) -> str:
-        expiry_date = self.find_next_monthly_expiry(today_date)
+        assert "INDEX" in symbol, print("The symbol should be of a valid Index.")
+        if "BSE" in symbol:
+            expiry_date = self.find_current_monthly_expiry(today_date, "Tuesday")
+        else:
+            expiry_date = self.find_current_monthly_expiry(today_date, "Thursday")
         expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
+        _year, _month = expiry_date.year, expiry_date.month
         _symbol = symbol.split("-")[0]
         return (
             _symbol
@@ -447,75 +336,7 @@ class FNOExpiry(DatetimeValidator):
             + opt_type
         )
 
-    def banknifty_current_month_opt_expiry(
-        self,
-        strike_price: int,
-        opt_type: str,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        expiry_date = self.find_current_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:BANKNIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + str(strike_price)
-            + opt_type
-        )
-
-    def banknifty_next_month_opt_expiry(
-        self,
-        strike_price: int,
-        opt_type: str,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        expiry_date = self.find_next_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:BANKNIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + str(strike_price)
-            + opt_type
-        )
-
-    def nifty_current_month_opt_expiry(
-        self,
-        strike_price: int,
-        opt_type: str,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        expiry_date = self.find_current_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + str(strike_price)
-            + opt_type
-        )
-
-    def nifty_next_month_opt_expiry(
-        self,
-        strike_price: int,
-        opt_type: str,
-        today_date: datetime.date = datetime.date.today(),
-    ) -> str:
-        expiry_date = self.find_next_monthly_expiry(today_date)
-        expiry_date = self.validate_expiry(expiry_date)
-        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY"
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + str(strike_price)
-            + opt_type
-        )
-
-    """Nifty options weekly expiry"""
+    """Nifty options weekly expiry contract(Testing Required!)"""
 
     def nifty_current_week_opt_expiry(
         self,
@@ -523,10 +344,10 @@ class FNOExpiry(DatetimeValidator):
         opt_type: str,
         today_date: datetime.date = datetime.date.today(),
     ) -> str:
-        expiry_date = self.find_current_weekly_expiry(today_date)
+        expiry_date = self.find_current_week_expiry(today_date)
         expiry_date = self.validate_expiry(expiry_date)
         if expiry_date < today_date:
-            expiry_date = self._find_current_weekday(today_date)
+            expiry_date = self._find_current_expiry_day(today_date)
         _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
         return (
             "NSE:NIFTY"
@@ -543,10 +364,52 @@ class FNOExpiry(DatetimeValidator):
         opt_type: str,
         today_date: datetime.date = datetime.date.today(),
     ) -> str:
-        expiry_date = self.find_next_weekly_expiry(today_date)
+        expiry_date = self.find_next_week_expiry(today_date)
         expiry_date = self.validate_expiry(expiry_date)
         if expiry_date - today_date <= datetime.timedelta(days=7):
-            expiry_date = self._find_current_weekday(today_date)
+            expiry_date = self._find_current_expiry_day(today_date)
+        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
+        return (
+            "NSE:NIFTY"
+            + str(_year)[-2:]
+            + self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]
+            + str(_day).zfill(2)
+            + str(strike_price)
+            + opt_type
+        )
+
+    """Sensex options weekly expiry contract(Testing Required!)"""
+
+    def sensex_current_week_opt_expiry(
+        self,
+        strike_price: int,
+        opt_type: str,
+        today_date: datetime.date = datetime.date.today(),
+    ) -> str:
+        expiry_date = self.find_current_week_expiry(today_date, "Tuesday")
+        expiry_date = self.validate_expiry(expiry_date)
+        if expiry_date < today_date:
+            expiry_date = self._find_current_expiry_day(today_date)
+        _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
+        return (
+            "NSE:NIFTY"
+            + str(_year)[-2:]
+            + self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]
+            + str(_day).zfill(2)
+            + str(strike_price)
+            + opt_type
+        )
+
+    def sensex_next_week_opt_expiry(
+        self,
+        strike_price: int,
+        opt_type: str,
+        today_date: datetime.date = datetime.date.today(),
+    ) -> str:
+        expiry_date = self.find_next_week_expiry(today_date, "Tuesday")
+        expiry_date = self.validate_expiry(expiry_date)
+        if expiry_date - today_date <= datetime.timedelta(days=7):
+            expiry_date = self._find_current_expiry_day(today_date)
         _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
         return (
             "NSE:NIFTY"
@@ -559,15 +422,7 @@ class FNOExpiry(DatetimeValidator):
 
 
 def main():
-    calc = FNOExpiry()
-    dt = datetime.date(2025, 4, 28)
-
-    # For weekly options
-    nifty_weekly = calc.nifty_current_week_opt_expiry(24000, "PE", dt)
-    nifty_next_weekly = calc.nifty_next_week_opt_expiry(25000, "CE", dt)
-
-    print(f"{nifty_weekly=}")
-    print(f"{nifty_next_weekly=}")
+    pass
 
 
 if __name__ == "__main__":

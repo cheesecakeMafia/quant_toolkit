@@ -43,26 +43,14 @@ def data_batches(
 
 
 def convert_symbol_to_ticker(symbol: str, dt=datetime.date.today()) -> str:
-    assert symbol, print("You need to pass a symbol to convert to ticker.")
-    if "FUT" in symbol:
-        if "NIFTY50" in symbol:
-            if "II" in symbol:
-                return FNOExpiry().nifty_next_month_fut_expiry(dt)
-            else:
-                return FNOExpiry().nifty_current_month_fut_expiry(dt)
-        elif "BANKNIFTY" in symbol:
-            if "II" in symbol:
-                return FNOExpiry().banknifty_next_month_fut_expiry(dt)
-            else:
-                return FNOExpiry().banknifty_current_month_fut_expiry(dt)
-        elif "NIFTY" in symbol:
-            if "II" in symbol:
-                return FNOExpiry().index_next_month_fut_expiry(symbol, dt)
-            else:
-                return FNOExpiry().index_current_month_fut_expiry(symbol, dt)
-        else:
-            return FNOExpiry().stock_current_month_fut_expiry(symbol, dt)
-    return symbol
+    if "FUT-2" in symbol:
+        return FNOExpiry().next_month_fut_expiry(symbol, dt)
+    elif "FUT-1" in symbol:
+        return FNOExpiry().current_month_fut_expiry(symbol, dt)
+    elif "FUT" == symbol[-3:]:
+        return FNOExpiry().current_month_fut_expiry(symbol, dt)
+    else:
+        return symbol
 
 
 def main():
@@ -75,26 +63,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-"""
-Result on 23 of Jan 2025 which is the monthly expiry 
-
-For symbol NSE:INDIAVIX-INDEX, ticker is NSE:INDIAVIX-INDEX
-For symbol NSE:NIFTY50-INDEX, ticker is NSE:NIFTY50-INDEX
-For symbol NSE:NIFTY-FUT-I, ticker is NSE:NIFTY25JANFUT
-For symbol NSE:NIFTY-FUT-II, ticker is NSE:NIFTY25FEBFUT
-For symbol NSE:NIFTYBANK-INDEX, ticker is NSE:NIFTYBANK-INDEX
-For symbol NSE:BANKNIFTY-FUT-I, ticker is NSE:BANKNIFTY25JANFUT
-For symbol NSE:BANKNIFTY-FUT-II, ticker is NSE:BANKNIFTY25FEBFUT
-For symbol NSE:FINNIFTY-INDEX, ticker is NSE:FINNIFTY-INDEX
-For symbol NSE:FINNIFTY-FUT-I, ticker is NSE:FINNIFTY25JANFUT
-For symbol NSE:FINNIFTY-FUT-II, ticker is NSE:FINNIFTY25FEBFUT
-For symbol NSE:MIDCPNIFTY-INDEX, ticker is NSE:MIDCPNIFTY-INDEX
-For symbol NSE:MIDCPNIFTY-FUT-I, ticker is NSE:MIDCPNIFTY25JANFUT
-For symbol NSE:MIDCPNIFTY-FUT-II, ticker is NSE:MIDCPNIFTY25FEBFUT
-For symbol NSE:NIFTYNXT50-INDEX, ticker is NSE:NIFTYNXT50-INDEX
-For symbol NSE:NIFTYNXT50-FUT-I, ticker is NSE:NIFTYNXT5025JANFUT
-For symbol NSE:NIFTYNXT50-FUT-II, ticker is NSE:NIFTYNXT5025FEBFUT
-
-Please also run this code on any day after 23 Jan to check the 
-"""
