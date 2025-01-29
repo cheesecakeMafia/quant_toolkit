@@ -276,6 +276,12 @@ class SecurityDataHandler:
             )
         return
 
+    def injest_data(self, symbol: str, data: pd.DataFrame) -> None:
+        """Injest data into the database for a given symbol."""
+        assert symbol, print("You need to pass a symbol to injest data for.")
+        assert data, print("You need to pass data to injest into the database.")
+        return
+
 
 class DBPaths:
     """This class provides the file paths of the respective databases and the list of symbols to pull.

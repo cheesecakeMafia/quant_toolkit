@@ -5,9 +5,52 @@ A thing to remeber is that it will make the function call on all cases, even whe
 
 import time
 from functools import wraps
-from typing import Callable, Any
+import inspect
+from typing import Callable, get_type_hints, Any
 import datetime
 import logging
+
+
+def validate_params(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        # Get function signature
+        sig = inspect.signature(func)
+        params = sig.parameters
+
+        # Get type hints
+        type_hints = get_type_hints(func)
+
+        # Convert args to a dictionary of param_name: value
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+
+        for param_name, value in bound_args.arguments.items():
+            # Check if parameter exists in type hints
+            if param_name in type_hints:
+                expected_type = type_hints[param_name]
+
+                # Handle Union types
+                if (
+                    hasattr(expected_type, "__origin__")
+                    and expected_type.__origin__ is Any
+                ):
+                    continue
+
+                # Check if value matches expected type
+                if not isinstance(value, expected_type):
+                    raise TypeError(
+                        f"Parameter '{param_name}' expects type {expected_type.__name__} but received {type(value).__name__}"
+                    )
+
+            # Check if required parameter is None
+            param = params[param_name]
+            if param.default == inspect.Parameter.empty and value is None:
+                raise ValueError(f"Required parameter '{param_name}' cannot be None")
+
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def timeme(func: Callable) -> Callable:
