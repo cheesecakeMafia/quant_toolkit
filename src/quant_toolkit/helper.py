@@ -1,6 +1,8 @@
 import datetime
 from quant_toolkit.datetime_API import FNOExpiry
 from quant_toolkit.data_API import DBPaths
+from pathlib import Path
+from typing import Union
 
 
 def data_batches(
@@ -42,15 +44,58 @@ def data_batches(
     return batches
 
 
-def convert_symbol_to_ticker(symbol: str, dt=datetime.date.today()) -> str:
-    if "FUT-2" in symbol:
+def convert_symbol_to_ticker(
+    symbol: str, dt: datetime.date = datetime.date.today()
+) -> str:
+    if "FUT-2" == symbol[-5:]:
         return FNOExpiry().next_month_fut_expiry(symbol, dt)
-    elif "FUT-1" in symbol:
+    elif "FUT-1" == symbol[-5:]:
         return FNOExpiry().current_month_fut_expiry(symbol, dt)
     elif "FUT" == symbol[-3:]:
         return FNOExpiry().current_month_fut_expiry(symbol, dt)
     else:
         return symbol
+
+
+def check_last_modified(
+    file_path: Union[str, Path], days: Union[int, datetime.date, datetime.datetime]
+) -> bool:
+    """
+    Check if a file's last modification time is older than specified days or date.
+
+    Args:
+        file_path (Union[str, Path]): Path to the file to check
+        days (Union[int, date]): Number of days or specific date to compare against
+
+    Returns:
+        bool: True if file is older than specified days/date, False otherwise
+
+    Raises:
+        FileNotFoundError: If the specified file doesn't exist
+        TypeError: If days parameter is neither an integer nor a date object
+    """
+    # Convert string path to Path object if necessary
+    file_path = Path(file_path)
+
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    # Get file's last modification time as datetime
+    file_time = datetime.datetime.fromtimestamp(file_path.stat().st_mtime)
+
+    # Handle different types of 'days' parameter
+    if isinstance(days, int):
+        cutoff_time = datetime.datetime.now() - datetime.timedelta(days=days)
+        return file_time < cutoff_time
+    elif type(days) is datetime.date:
+        # Convert file_time to date for comparison with date object
+        return file_time.date() < days
+    elif type(days) is datetime.datetime:
+        return file_time < days
+    else:
+        raise TypeError(
+            "days parameter must be either an int, a datetime.date or a datetime.datetime object"
+        )
 
 
 def main():
@@ -59,6 +104,10 @@ def main():
         print(
             f"For symbol {sym}, ticker is {convert_symbol_to_ticker(sym, dt=datetime.date(2025, 1, 30))}"
         )
+    days = datetime.datetime(2025, 1, 30)
+    file_path = r"/home/cheesecake/Quant/quant_toolkit/pyproject.toml"
+    # file_path = r"/home/cheesecake/Quant/quant_toolkit/src/quant_toolkit/data_API.py"
+    print(check_last_modified(file_path, days))
 
 
 if __name__ == "__main__":
