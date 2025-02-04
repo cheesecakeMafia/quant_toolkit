@@ -34,12 +34,12 @@ class DataHandler:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
-        self.db_conn = sqlite3.connect(self.db_path)
+        # self.db_conn = sqlite3.connect(self.db_path)
 
-    def __del__(self):
-        if hasattr(self, "db_conn"):
-            self.db_conn.close()
-            print("We have successfully closed the DB connection.")
+    # def __del__(self):
+    #     if hasattr(self, "db_conn"):
+    #         self.db_conn.close()
+    #         print("We have successfully closed the DB connection.")
 
     def database_exists(self) -> bool:
         """Checks whether we already have the database file or not. If yes, we just need to update the data and not download the whole data again.
@@ -51,7 +51,7 @@ class DataHandler:
             return True
         return True
 
-    def _symbol_exists(self, symbol: str) -> bool:
+    def _symbol_exists(self, symbol: str, db_conn: sqlite3.Connection) -> bool:
         """Checks whether the given symbol exists in the database or not.
 
         Args:
@@ -62,7 +62,8 @@ class DataHandler:
         """
         if not self.database_exists():
             return False
-        cursor = self.db_conn.cursor()
+        cursor = db_conn.cursor()
+        # cursor = self.db_conn.cursor()
         try:
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             _symbols_in_db = [row[0] for row in cursor.fetchall()]
@@ -79,11 +80,12 @@ class DataHandler:
     def _security_earliest_datetime(
         self,
         symbol: str,
+        db_conn: sqlite3.Connection,
         default_start: datetime.date = datetime.date(2017, 1, 1),
     ) -> datetime.date:
         """Retrieves the earliest datetime available for the data of a given security symbol."""
         if self._symbol_exists(symbol):
-            cursor = self.db_conn.cursor()
+            cursor = db_conn.cursor()
             cursor.execute(f"SELECT * FROM '{symbol}' ORDER BY ROWID LIMIT 1")
             start_date = datetime.datetime.strptime(
                 cursor.fetchone()[0], "%Y-%m-%d %H:%M:%S"
@@ -96,10 +98,12 @@ class DataHandler:
             )
             return default_start
 
-    def _security_latest_datetime(self, symbol: str) -> datetime.date:
+    def _security_latest_datetime(
+        self, symbol: str, db_conn: sqlite3.Connection
+    ) -> datetime.date:
         """Retrieves the most recent datetime available for a given security symbol."""
         if self._symbol_exists(symbol):
-            cursor = self.db_conn.cursor()
+            cursor = db_conn.cursor()
             cursor.execute(f"SELECT * FROM '{symbol}' ORDER BY ROWID DESC LIMIT 1")
             latest_date = datetime.datetime.strptime(
                 cursor.fetchone()[0], "%Y-%m-%d %H:%M:%S"
@@ -123,10 +127,10 @@ class DataHandler:
         else:
             return symbol
 
-    def get_available_securities(self) -> List[str]:
+    def get_available_securities(self, db_conn: sqlite3.Connection) -> List[str]:
         """Retrieves a list of all available security symbols in the database."""
         if self.database_exists():
-            cursor = self.db_conn.cursor()
+            cursor = db_conn.cursor()
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             symbols_in_db = [row[0] for row in cursor.fetchall()]
             cursor.close()
@@ -137,6 +141,7 @@ class DataHandler:
     def get_security_data(
         self,
         symbol: str,
+        db_conn: sqlite3.Connection,
         start_datetime: Union[int, None, str, datetime.date] = None,
     ) -> Union[pd.DataFrame, None]:
         """
@@ -167,7 +172,7 @@ class DataHandler:
         else:
             start_datetime = self._security_earliest_datetime(symbol)
 
-        cursor = self.db_conn.cursor()
+        cursor = db_conn.cursor()
         query = f"""SELECT * FROM '{symbol}' WHERE 'datetime' >= '{start_datetime}' ORDER BY 'datetime' """
         results = pd.read_sql_query(query, self.db_conn, index_col=None)
         results["datetime"] = pd.to_datetime(
@@ -176,11 +181,11 @@ class DataHandler:
         cursor.close()
         return results
 
-    def delete_security(self, symbol: str) -> None:
+    def delete_security(self, symbol: str, db_conn: sqlite3.Connection) -> None:
         """Deleted the whole table for the security symbol from the database."""
         assert symbol, print("You need to pass a symbol to delete data for.")
         if self._symbol_exists(symbol):
-            cursor = self.db_conn.cursor()
+            cursor = db_conn.cursor()
             cursor.execute(f"DROP TABLE IF EXISTS '{symbol}'")
             self.db_conn.commit()
             print(f"We have deleted the data for symbol {symbol}.")
@@ -192,6 +197,7 @@ class DataHandler:
     def delete_security_from_date(
         self,
         symbol: str,
+        db_conn: sqlite3.Connection,
         from_datetime: Union[int | None | str | datetime.date] = 252,
     ) -> None:
         """Deletes the data from table of the particular security from the passed date or for the last x days if type is int."""
@@ -213,7 +219,7 @@ class DataHandler:
         else:
             from_datetime = self._security_earliest_datetime(symbol)
 
-        cursor = self.db_conn.cursor()
+        cursor = db_conn.cursor()
         try:
             from_datetime = datetime.datetime.strftime(
                 from_datetime, format="%Y-%m-%d %H:%M-%S"
@@ -235,6 +241,7 @@ class DataHandler:
 
     def check_db_integrity(
         self,
+        db_con: sqlite3.Connection,
         year: Union[int | str] = datetime.date.today().year - 3,
         log_csv=False,
         delete_symbol=False,

@@ -47,11 +47,10 @@ def data_batches(
 def convert_symbol_to_ticker(
     symbol: str, dt: datetime.date = datetime.date.today()
 ) -> str:
-    if "FUT-2" == symbol[-5:]:
-        return FNOExpiry().next_month_fut_expiry(symbol, dt)
-    elif "FUT-1" == symbol[-5:]:
-        return FNOExpiry().current_month_fut_expiry(symbol, dt)
-    elif "FUT" == symbol[-3:]:
+    assert symbol, print("You need to pass a symbol to convert it to a ticker.")
+    if "FUT" in symbol:
+        if "2" in symbol:
+            return FNOExpiry().next_month_fut_expiry(symbol, dt)
         return FNOExpiry().current_month_fut_expiry(symbol, dt)
     else:
         return symbol
