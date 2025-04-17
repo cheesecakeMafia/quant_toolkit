@@ -47,21 +47,20 @@ def validate_params(func):
             param = params[param_name]
             if param.default == inspect.Parameter.empty and value is None:
                 raise ValueError(f"Required parameter '{param_name}' cannot be None")
-
         return func(*args, **kwargs)
 
     return wrapper
 
 
-def timeme(func: Callable) -> Callable:
-    """A decorator function to time how much the function"""
+def time_logger(func: Callable) -> Callable:
+    """A decorator function to time how much time the function takes to run."""
 
     @wraps(func)
     def wrapper(*args, **kwargs) -> Any:
-        start = time.perf_counter_ns()
+        start = time.perf_counter()
         result = func(*args, **kwargs)
-        end = time.perf_counter_ns()
-        print(f"This func {func.__name__} too '{end - start:.6f}' seconds to run.")
+        end = time.perf_counter()
+        print(f"This func {func.__name__} takes '{end - start:.4f}' seconds to run.")
         return result
 
     return wrapper
@@ -83,7 +82,7 @@ def retry(retries: int = 3, delay: float = 1) -> Callable:
                         print(f'"{func.__name__}()" failed after {retries} retries.')
                         break
                     else:
-                        print(f"Error: {repr(e)} -> Retrying...")
+                        print(f"Error: {repr(e)} -> Retrying...{i + 1}/{retries}")
                         time.sleep(delay)
 
         return wrapper
@@ -99,7 +98,7 @@ def debug(func: Callable) -> Callable:
         args_repr = [repr(a) for a in args]
         kwargs_repr = [f"{k}={repr(v)}" for k, v in kwargs.items()]
         signature = ", ".join(args_repr + kwargs_repr)
-        print(f"Calling {func.__name__}({signature})")
+        print(f"Calling {func.__name__} with args ({signature})")
         value = func(*args, **kwargs)
         print(f"{func.__name__}() returned {repr(value)}")
         return value
@@ -122,6 +121,26 @@ def slow_down(_func=None, delay: int = 1):
         return decorator
     else:
         return decorator(_func)
+
+
+def rate_limiter(max_calls: int, period: int):
+    """Limit the number of calls to a function within a given period"""
+
+    def decorator(func: Callable) -> Callable:
+        last_called = []
+
+        def wrapper(*args, **kwargs):
+            nonlocal last_called
+            now = time.time()
+            last_calls = [call for call in last_called if now - call < period]
+            if len(last_calls) > max_calls:
+                raise RuntimeError("Rate limit exceeded. Please try again later.")
+            last_calls.append(now)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
 
 
 def memoize(func: Callable) -> Callable:
@@ -382,4 +401,15 @@ def timeout(*, seconds=3, error_message="Call to function timed out!"):
 
     return decorator
     
+"""
+
+
+"""
+Python decorators from neuralnine youtube channel
+1.
+2.
+3.
+4.
+5.
+
 """
