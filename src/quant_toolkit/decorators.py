@@ -1,7 +1,8 @@
 """Functools module in python has some absolute bangers like @cache, @partials, et cetera
 
 We could also build a decortor like @on_exit which will call whatever function it is decorated on, when the program is about to terminate.
-A thing to remeber is that it will make the function call on all cases, even when we encounter an error and code stops executing, the @on_exit will call the func."""
+A thing to remeber is that it will make the function call on all cases, even when we encounter an error and code stops executing, the @on_exit will call the func.
+Or we could import atexit module and use something like @atexit.register decorator to the function we want to call when the program is about to terminate."""
 
 import time
 from functools import wraps
