@@ -4,7 +4,7 @@ where = ["src"]
 [project]
 name = "quant-toolkit"
 version = "0.1.0"
-description = "Add your description here"
+description = "A private library of packages that contain several tools to implement and interact with quantitative finance projects."
 readme = "README.md"
 authors = [
     { name = "cheesecakeMafia", email = "f2013359@gmail.com" }

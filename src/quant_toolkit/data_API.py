@@ -6,8 +6,10 @@ import sqlite3
 import datetime
 from quant_toolkit.datetime_API import FNOExpiry
 
-"""This file is a work in progress. Still need to decide on the DB of choice for storing time series data. 
-    Torn between TimeScaleDB and sqlite3.
+"""
+This file is a work in progress. Current implementation is with sqlite3.
+Still need to decide on the DB of choice for storing time series data. 
+Torn between TimeScaleDB and sqlite3.
 """
 
 
@@ -34,6 +36,7 @@ class DataHandler:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
+        # TODO: One important design decision is to decide if the connection is established in the DataHandler class or in the work repo where this is imported.
         # self.db_conn = sqlite3.connect(self.db_path)
 
     # def __del__(self):
@@ -45,11 +48,11 @@ class DataHandler:
         """Checks whether we already have the database file or not. If yes, we just need to update the data and not download the whole data again.
 
         Returns:
-            bool: True if exits, False otherwise.
+            bool: True if exists, False otherwise.
         """
         if os.path.isfile(self.db_path):
             return True
-        return True
+        return False
 
     def _symbol_exists(self, symbol: str, db_conn: sqlite3.Connection) -> bool:
         """Checks whether the given symbol exists in the database or not.
@@ -246,6 +249,7 @@ class DataHandler:
         log_csv=False,
         delete_symbol=False,
     ) -> None:
+        # TODO: This is a WIP!
         """This method will show all the securities which have data for time less than the arg years. You could also save them
         in a .csv file and could further delete them from the universe."""
         # if type(year) is str:
@@ -273,6 +277,7 @@ class DataHandler:
         pass
 
     def injest_data(self, symbol: str, data: pd.DataFrame) -> None:
+        # TODO: This is also a WIP!
         """Injest data into the database for a given symbol."""
         assert symbol, print("You need to pass a symbol to injest data for.")
         assert data, print("You need to pass data to injest into the database.")
@@ -286,6 +291,8 @@ class DBPaths:
     Properties: stocks_db_path, index_db_path, futures_db_path
     """
 
+    # TODO: One important thing to note is that the file paths are hardcoded. We might in future move the databases to docker container(s) \
+    # TODO: and hence, this might need some updating.
     def __init__(self):
         self.index_db_path = r"/home/cheesecake/Downloads/Data/index/index_data.db"
         self.futures_db_path = (

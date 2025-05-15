@@ -5,15 +5,6 @@ import pandas as pd
 from typing import Union
 
 
-"""
-/** 
-* ! This is in red. 
-* ? This is in blue.
-* TODO: This is in orange.
-*/ 
-"""
-
-
 class DatetimeValidator:
     def __init__(self):
         self.WEEKDAY_MAP = {
@@ -290,6 +281,7 @@ class FNOExpiry(DatetimeValidator):
 
     """Index monthly options expiry contract(Testing Required!)"""
 
+    # TODO: Testing required
     def index_current_month_opt_expiry(
         self,
         symbol: str,
@@ -313,6 +305,7 @@ class FNOExpiry(DatetimeValidator):
             + opt_type
         )
 
+    # TODO: Testing required
     def index_next_month_opt_expiry(
         self,
         symbol: str,
@@ -338,6 +331,7 @@ class FNOExpiry(DatetimeValidator):
 
     """Nifty options weekly expiry contract(Testing Required!)"""
 
+    # TODO: Testing required
     def nifty_current_week_opt_expiry(
         self,
         strike_price: int,
@@ -358,6 +352,7 @@ class FNOExpiry(DatetimeValidator):
             + opt_type
         )
 
+    # TODO: Testing required
     def nifty_next_week_opt_expiry(
         self,
         strike_price: int,
@@ -380,6 +375,7 @@ class FNOExpiry(DatetimeValidator):
 
     """Sensex options weekly expiry contract(Testing Required!)"""
 
+    # TODO: Testing required
     def sensex_current_week_opt_expiry(
         self,
         strike_price: int,
@@ -400,6 +396,7 @@ class FNOExpiry(DatetimeValidator):
             + opt_type
         )
 
+    # TODO: Testing required
     def sensex_next_week_opt_expiry(
         self,
         strike_price: int,
