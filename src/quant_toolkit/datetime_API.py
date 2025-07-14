@@ -1,8 +1,8 @@
 import datetime
-from typing import List
+
+# Type hints now use Python 3.10+ union operator |
 import calendar
 import pandas as pd
-from typing import Union
 
 
 class DatetimeValidator:
@@ -26,11 +26,11 @@ class DatetimeValidator:
             "sun": 6,
         }
 
-    def _get_holiday_list(self) -> List[datetime.date]:
+    def _get_holiday_list(self) -> list[datetime.date]:
         """Returns a list of all the holidays in they year so that expiries can be adjusted accordingly.
 
         Returns:
-            List[datetime.date]: Returns a list of datatime.date objects where each element is a holiday date.
+            list[datetime.date]: Returns a list of datatime.date objects where each element is a holiday date.
         """
         try:
             url = "https://groww.in/p/nse-holidays"
@@ -112,7 +112,7 @@ class DatetimeValidator:
         return today_date + datetime.timedelta(days=days_until)
 
     def _find_next_expiry_day(
-        self, today_date: datetime.date, target_day: Union[int, str] = "Thursday"
+        self, today_date: datetime.date, target_day: int | str = "Thursday"
     ) -> datetime.date:
         """
         Find the date of the specified weekday which is a week after the current.
@@ -262,7 +262,7 @@ class FNOExpiry(DatetimeValidator):
         expiry_date = self.validate_expiry(expiry_date)
         _year, _month = expiry_date.year, expiry_date.month
         _symbol = symbol.split("-")[0].upper()
-        return _symbol + str(_year)[-2:] + calendar.month_abbr[_month].upper() + "FUT"
+        return f"{_symbol}{str(_year)[-2:]}{calendar.month_abbr[_month].upper()}FUT"
 
     def next_month_fut_expiry(
         self,
@@ -277,7 +277,7 @@ class FNOExpiry(DatetimeValidator):
         expiry_date = self.validate_expiry(expiry_date)
         _year, _month = expiry_date.year, expiry_date.month
         _symbol = symbol.split("-")[0].upper()
-        return _symbol + str(_year)[-2:] + calendar.month_abbr[_month].upper() + "FUT"
+        return f"{_symbol}{str(_year)[-2:]}{calendar.month_abbr[_month].upper()}FUT"
 
     """Index monthly options expiry contract(Testing Required!)"""
 
@@ -297,13 +297,7 @@ class FNOExpiry(DatetimeValidator):
         expiry_date = self.validate_expiry(expiry_date)
         _year, _month = expiry_date.year, expiry_date.month
         _symbol = symbol.split("-")[0]
-        return (
-            _symbol
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + str(strike_price)
-            + opt_type
-        )
+        return f"{_symbol}{str(_year)[-2:]}{calendar.month_abbr[_month].upper()}{strike_price}{opt_type}"
 
     # TODO: Testing required
     def index_next_month_opt_expiry(
@@ -321,13 +315,7 @@ class FNOExpiry(DatetimeValidator):
         expiry_date = self.validate_expiry(expiry_date)
         _year, _month = expiry_date.year, expiry_date.month
         _symbol = symbol.split("-")[0]
-        return (
-            _symbol
-            + str(_year)[-2:]
-            + calendar.month_abbr[_month].upper()
-            + str(strike_price)
-            + opt_type
-        )
+        return f"{_symbol}{str(_year)[-2:]}{calendar.month_abbr[_month].upper()}{strike_price}{opt_type}"
 
     """Nifty options weekly expiry contract(Testing Required!)"""
 
@@ -343,14 +331,7 @@ class FNOExpiry(DatetimeValidator):
         if expiry_date < today_date:
             expiry_date = self._find_current_expiry_day(today_date)
         _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY"
-            + str(_year)[-2:]
-            + self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]
-            + str(_day).zfill(2)
-            + str(strike_price)
-            + opt_type
-        )
+        return f"NSE:NIFTY{str(_year)[-2:]}{self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]}{str(_day).zfill(2)}{strike_price}{opt_type}"
 
     # TODO: Testing required
     def nifty_next_week_opt_expiry(
@@ -364,14 +345,7 @@ class FNOExpiry(DatetimeValidator):
         if expiry_date - today_date <= datetime.timedelta(days=7):
             expiry_date = self._find_current_expiry_day(today_date)
         _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY"
-            + str(_year)[-2:]
-            + self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]
-            + str(_day).zfill(2)
-            + str(strike_price)
-            + opt_type
-        )
+        return f"NSE:NIFTY{str(_year)[-2:]}{self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]}{str(_day).zfill(2)}{strike_price}{opt_type}"
 
     """Sensex options weekly expiry contract(Testing Required!)"""
 
@@ -387,14 +361,7 @@ class FNOExpiry(DatetimeValidator):
         if expiry_date < today_date:
             expiry_date = self._find_current_expiry_day(today_date)
         _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY"
-            + str(_year)[-2:]
-            + self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]
-            + str(_day).zfill(2)
-            + str(strike_price)
-            + opt_type
-        )
+        return f"NSE:NIFTY{str(_year)[-2:]}{self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]}{str(_day).zfill(2)}{strike_price}{opt_type}"
 
     # TODO: Testing required
     def sensex_next_week_opt_expiry(
@@ -408,14 +375,7 @@ class FNOExpiry(DatetimeValidator):
         if expiry_date - today_date <= datetime.timedelta(days=7):
             expiry_date = self._find_current_expiry_day(today_date)
         _year, _month, _day = expiry_date.year, expiry_date.month, expiry_date.day
-        return (
-            "NSE:NIFTY"
-            + str(_year)[-2:]
-            + self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]
-            + str(_day).zfill(2)
-            + str(strike_price)
-            + opt_type
-        )
+        return f"NSE:NIFTY{str(_year)[-2:]}{self.MONTH_KEY_MAP[calendar.month_abbr[_month].upper()]}{str(_day).zfill(2)}{strike_price}{opt_type}"
 
 
 def main():

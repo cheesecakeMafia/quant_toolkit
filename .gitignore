@@ -9,4 +9,8 @@ wheels/
 # Virtual environments
 .venv/
 
+# Planning files and folder
+plan/*
 
+# Linters and formatter
+.ruff*

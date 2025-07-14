@@ -2,7 +2,7 @@ import datetime
 from quant_toolkit.datetime_API import FNOExpiry
 from quant_toolkit.data_API import DBPaths
 from pathlib import Path
-from typing import Union
+# Type hints now use Python 3.10+ union operator |
 
 
 def data_batches(
@@ -57,14 +57,14 @@ def convert_symbol_to_ticker(
 
 
 def check_last_modified(
-    file_path: Union[str, Path], days: Union[int, datetime.date, datetime.datetime]
+    file_path: str | Path, days: int | datetime.date | datetime.datetime
 ) -> bool:
     """
     Check if a file's last modification time is older than specified days or date.
 
     Args:
-        file_path (Union[str, Path]): Path to the file to check
-        days (Union[int, date]): Number of days or specific date to compare against
+        file_path (str | Path): Path to the file to check
+        days (int | date): Number of days or specific date to compare against
 
     Returns:
         bool: True if file is older than specified days/date, False otherwise
@@ -86,10 +86,10 @@ def check_last_modified(
     if isinstance(days, int):
         cutoff_time = datetime.datetime.now() - datetime.timedelta(days=days)
         return file_time < cutoff_time
-    elif type(days) is datetime.date:
+    elif isinstance(days, datetime.date) and not isinstance(days, datetime.datetime):
         # Convert file_time to date for comparison with date object
         return file_time.date() < days
-    elif type(days) is datetime.datetime:
+    elif isinstance(days, datetime.datetime):
         return file_time < days
     else:
         raise TypeError(

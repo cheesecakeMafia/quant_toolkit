@@ -7,7 +7,7 @@ Or we could import atexit module and use something like @atexit.register decorat
 import time
 from functools import wraps
 import inspect
-from typing import Callable, Union, get_type_hints, Any
+from typing import Callable, get_type_hints, Any
 import datetime
 import logging
 
@@ -202,7 +202,7 @@ def get_default_logger():
     return MyLogger().get_logger()
 
 
-def log(_func=None, *, my_logger: Union[MyLogger, logging.Logger] = None):
+def log(_func=None, *, my_logger: MyLogger | logging.Logger = None):
     def decorator_log(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
