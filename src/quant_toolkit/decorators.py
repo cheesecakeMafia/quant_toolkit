@@ -1,18 +1,27 @@
-"""Functools module in python has some absolute bangers like @cache, @partials, et cetera
+"""Production-ready decorators for validation, timing, retry logic, caching, and rate limiting.
 
-We could also build a decortor like @on_exit which will call whatever function it is decorated on, when the program is about to terminate.
-A thing to remeber is that it will make the function call on all cases, even when we encounter an error and code stops executing, the @on_exit will call the func.
-Or we could import atexit module and use something like @atexit.register decorator to the function we want to call when the program is about to terminate."""
+Provides a comprehensive set of decorators for common cross-cutting concerns:
+- Parameter validation with type checking
+- Performance monitoring and timing
+- Retry logic with configurable attempts and delays
+- Function debugging and inspection
+- Rate limiting for API calls
+- Result caching (memoization)
+- Execution delays
+"""
 
 import time
 from functools import wraps
 import inspect
-from typing import Callable, get_type_hints, Any
-import datetime
-import logging
+from typing import Callable, get_type_hints, Any, TypeVar, ParamSpec, Optional, Union
+from collections.abc import Hashable
+
+# Type variables for better type hints
+P = ParamSpec('P')
+T = TypeVar('T')
 
 
-def validate_params(func) -> Callable:
+def validate_params(func: Callable[P, T]) -> Callable[P, T]:
     @wraps(func)
     def wrapper(*args, **kwargs):
         # Get function signature
@@ -31,12 +40,20 @@ def validate_params(func) -> Callable:
             if param_name in type_hints:
                 expected_type = type_hints[param_name]
 
-                # Handle Union types
-                if (
-                    hasattr(expected_type, "__origin__")
-                    and expected_type.__origin__ is Any
-                ):
-                    continue
+                # Handle special types (Any, Optional, Union)
+                if hasattr(expected_type, "__origin__"):
+                    # Skip Any type
+                    if expected_type.__origin__ is Any:
+                        continue
+                    # Handle Optional[T] which is Union[T, None]
+                    if expected_type.__origin__ is Union:
+                        # Get the args excluding None
+                        type_args = [t for t in expected_type.__args__ if t is not type(None)]
+                        if value is None and type(None) in expected_type.__args__:
+                            continue  # None is valid for Optional
+                        if any(isinstance(value, t) for t in type_args):
+                            continue
+                        expected_type = type_args[0] if len(type_args) == 1 else expected_type
 
                 # Check if value matches expected type
                 if not isinstance(value, expected_type):
@@ -53,214 +70,254 @@ def validate_params(func) -> Callable:
     return wrapper
 
 
-def time_logger(func: Callable) -> Callable:
-    """A decorator function to time how much time the function takes to run."""
-
+def time_logger(func: Callable[P, T]) -> Callable[P, T]:
+    """Decorator to measure and log function execution time.
+    
+    Prints execution time to stdout with microsecond precision for sub-second
+    operations and second precision for longer operations.
+    """
     @wraps(func)
-    def wrapper(*args, **kwargs) -> Any:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
         start = time.perf_counter()
-        result = func(*args, **kwargs)
-        end = time.perf_counter()
-        print(f"This func {func.__name__} takes '{end - start:.4f}' seconds to run.")
-        return result
-
+        try:
+            result = func(*args, **kwargs)
+            return result
+        finally:
+            duration = time.perf_counter() - start
+            if duration < 0.001:
+                print(f"{func.__name__} took {duration * 1_000_000:.2f}μs")
+            elif duration < 1:
+                print(f"{func.__name__} took {duration * 1000:.2f}ms")
+            else:
+                print(f"{func.__name__} took {duration:.4f}s")
     return wrapper
 
 
-def retry(retries: int = 3, delay: float = 1) -> Callable:
-    """Attempt to call a function, if it fails, try again with a specified delay."""
+def retry(retries: int = 3, delay: float = 1.0, backoff: float = 1.0, 
+          exceptions: tuple[type[Exception], ...] = (Exception,)) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Retry a function call with exponential backoff.
+    
+    Args:
+        retries: Maximum number of retry attempts
+        delay: Initial delay between retries in seconds
+        backoff: Backoff multiplier for exponential delay
+        exceptions: Tuple of exception types to catch and retry
+    
+    Raises:
+        The last exception if all retries fail
+    """
+    if retries < 1:
+        raise ValueError("retries must be at least 1")
+    if delay < 0:
+        raise ValueError("delay must be non-negative")
+    if backoff < 1:
+        raise ValueError("backoff must be at least 1")
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @wraps(func)
-        def wrapper(*args, **kwargs) -> Any:
-            for i in range(1, retries + 1):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            last_exception = None
+            current_delay = delay
+            
+            for attempt in range(1, retries + 1):
                 try:
-                    print(f"Running ({i}): {func.__name__}()")
+                    if attempt > 1:
+                        print(f"Retry {attempt}/{retries}: {func.__name__}")
                     return func(*args, **kwargs)
-                except Exception as e:
-                    if i == retries:
-                        print(f"Error: {repr(e)}.")
-                        print(f'"{func.__name__}()" failed after {retries} retries.')
-                        break
-                    else:
-                        print(f"Error: {repr(e)} -> Retrying...{i + 1}/{retries}")
-                        time.sleep(delay)
-
+                except exceptions as e:
+                    last_exception = e
+                    if attempt == retries:
+                        print(f"{func.__name__} failed after {retries} attempts: {e}")
+                        raise
+                    print(f"Attempt {attempt} failed: {e}. Retrying in {current_delay:.1f}s...")
+                    time.sleep(current_delay)
+                    current_delay *= backoff
+            
+            raise last_exception  # Should never reach here
         return wrapper
-
     return decorator
 
 
-def debug(func: Callable) -> Callable:
-    """Print the function signature and return value"""
-
+def debug(func: Callable[P, T]) -> Callable[P, T]:
+    """Debug decorator that prints function calls, arguments, and return values.
+    
+    Truncates long representations to keep output readable.
+    """
     @wraps(func)
-    def wrapper_debug(*args, **kwargs):
-        args_repr = [repr(a) for a in args]
-        kwargs_repr = [f"{k}={repr(v)}" for k, v in kwargs.items()]
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        # Truncate long representations
+        def truncate_repr(obj: Any, max_len: int = 100) -> str:
+            rep = repr(obj)
+            return rep if len(rep) <= max_len else rep[:max_len-3] + '...'
+        
+        args_repr = [truncate_repr(a) for a in args]
+        kwargs_repr = [f"{k}={truncate_repr(v)}" for k, v in kwargs.items()]
         signature = ", ".join(args_repr + kwargs_repr)
-        print(f"Calling {func.__name__} with args ({signature})")
-        value = func(*args, **kwargs)
-        print(f"{func.__name__}() returned {repr(value)}")
-        return value
+        
+        print(f"→ {func.__name__}({signature})")
+        try:
+            result = func(*args, **kwargs)
+            print(f"← {func.__name__} returned: {truncate_repr(result)}")
+            return result
+        except Exception as e:
+            print(f"✗ {func.__name__} raised: {type(e).__name__}: {e}")
+            raise
+    return wrapper
 
-    return wrapper_debug
 
-
-def slow_down(_func=None, delay: int = 1):
-    """Sleep for x second(s) before calling the function"""
-
-    def decorator(func: Callable) -> Callable:
+def slow_down(_func: Optional[Callable[P, T]] = None, *, delay: float = 1.0) -> Union[Callable[[Callable[P, T]], Callable[P, T]], Callable[P, T]]:
+    """Add a delay before function execution.
+    
+    Can be used with or without parentheses:
+        @slow_down  # 1 second delay
+        @slow_down(delay=2.5)  # 2.5 second delay
+    
+    Args:
+        delay: Delay in seconds before executing the function
+    """
+    if delay < 0:
+        raise ValueError("delay must be non-negative")
+    
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
         @wraps(func)
-        def wrapper_slow_down(*args, **kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             time.sleep(delay)
             return func(*args, **kwargs)
-
-        return wrapper_slow_down
-
+        return wrapper
+    
     if _func is None:
         return decorator
     else:
         return decorator(_func)
 
 
-def rate_limiter(max_calls: int, period: int):
-    """Limit the number of calls to a function within a given period"""
-
-    def decorator(func: Callable) -> Callable:
-        last_called = []
-
-        def wrapper(*args, **kwargs):
-            nonlocal last_called
+def rate_limiter(max_calls: int, period: float) -> Callable[[Callable[P, T]], Callable[P, T]]:
+    """Limit function calls to max_calls within a time period.
+    
+    Args:
+        max_calls: Maximum number of calls allowed
+        period: Time period in seconds
+    
+    Raises:
+        RuntimeError: When rate limit is exceeded
+    """
+    if max_calls < 1:
+        raise ValueError("max_calls must be at least 1")
+    if period <= 0:
+        raise ValueError("period must be positive")
+    
+    def decorator(func: Callable[P, T]) -> Callable[P, T]:
+        call_times: list[float] = []
+        
+        @wraps(func)
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+            nonlocal call_times
             now = time.time()
-            last_calls = [call for call in last_called if now - call < period]
-            if len(last_calls) > max_calls:
-                raise RuntimeError("Rate limit exceeded. Please try again later.")
-            last_calls.append(now)
+            
+            # Remove calls outside the time window
+            call_times = [t for t in call_times if now - t < period]
+            
+            # Check rate limit
+            if len(call_times) >= max_calls:
+                wait_time = period - (now - call_times[0])
+                raise RuntimeError(
+                    f"Rate limit exceeded ({max_calls} calls per {period}s). "
+                    f"Try again in {wait_time:.1f}s."
+                )
+            
+            # Record this call and execute
+            call_times.append(now)
             return func(*args, **kwargs)
-
+        
+        # Add utility method to reset rate limit
+        wrapper.reset_rate_limit = lambda: call_times.clear()
         return wrapper
-
+    
     return decorator
 
 
-def memoize(func: Callable) -> Callable:
-    """Store the result of the function call in a cache"""
-
-    cache = {}
-
+def memoize(func: Callable[P, T]) -> Callable[P, T]:
+    """Cache function results based on arguments.
+    
+    Note: Only works with hashable arguments. For unhashable arguments,
+    falls back to calling the function without caching.
+    
+    The wrapper includes cache management methods:
+    - wrapper.cache_info(): Get cache statistics
+    - wrapper.cache_clear(): Clear the cache
+    """
+    cache: dict[tuple[Hashable, ...], T] = {}
+    hits = misses = 0
+    
     @wraps(func)
-    def wrapper_memoize(*args, **kwargs):
-        key = str(args) + str(kwargs)
-        if key not in cache:
-            cache[key] = func(*args, **kwargs)
-        return cache[key]
-
-    return wrapper_memoize
-
-
-class logit:
-    """A class to log the function call. This doesn't handle error logging and thus we need another function to do that for us."""
-
-    def __init__(
-        self,
-        func: Callable,
-        path: str = r"/home/cheesecake/Downloads/logs/logfile.log",
-        loggin_level: int = logging.DEBUG,
-    ):
-        self.func = func
-        self.path = path
-        self.loggin_level = loggin_level
-
-    def __call__(self, *args, **kwargs):
-        """wrapper function"""
-        start = time.perf_counter_ns()
-        result = self.func(*args, **kwargs)
-        end = time.perf_counter_ns()
-        func_name = self.func.__name__
-
-        message = f"""Running {func_name}
-                      Execution time: {end - start:.6f} seconds
-                      Address: {self.path}
-                      Logging level: {self.loggin_level}
-                      Date: {datetime.datetime.now()}"""
-
-        logging.basicConfig(filename=self.path, level=self.loggin_level)
-        logging.debug(message)
-        return result
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        nonlocal hits, misses
+        
+        # Try to create a hashable key
+        try:
+            # Convert kwargs to sorted tuple for consistent hashing
+            key = (args, tuple(sorted(kwargs.items())))
+            hash(key)  # Test if hashable
+        except TypeError:
+            # Arguments not hashable, skip caching
+            misses += 1
+            return func(*args, **kwargs)
+        
+        if key in cache:
+            hits += 1
+            return cache[key]
+        else:
+            misses += 1
+            result = func(*args, **kwargs)
+            cache[key] = result
+            return result
+    
+    # Add cache management methods
+    wrapper.cache_info = lambda: {'hits': hits, 'misses': misses, 'size': len(cache)}
+    wrapper.cache_clear = lambda: (cache.clear(), setattr(wrapper, 'hits', 0), setattr(wrapper, 'misses', 0))
+    
+    return wrapper
 
 
-class MyLogger:
-    def __init__(self):
-        logging.basicConfig(level=logging.DEBUG)
+def singleton(cls: type[T]) -> type[T]:
+    """Ensure a class has only one instance (Singleton pattern).
+    
+    Thread-safe implementation using a lock.
+    
+    Example:
+        @singleton
+        class DatabaseConnection:
+            def __init__(self):
+                self.connection = connect_to_db()
+    """
+    instances = {}
+    lock = None
+    
+    @wraps(cls)
+    def get_instance(*args, **kwargs):
+        nonlocal lock
+        if lock is None:
+            import threading
+            lock = threading.Lock()
+        
+        if cls not in instances:
+            with lock:
+                # Double-check locking pattern
+                if cls not in instances:
+                    instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    
+    return get_instance
 
-    def get_logger(self, name=None):
-        return logging.getLogger(name)
 
-
-def get_default_logger():
-    return MyLogger().get_logger()
-
-
-def log(_func=None, *, my_logger: MyLogger | logging.Logger = None):
-    def decorator_log(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            logger = get_default_logger()
-            try:
-                if my_logger is None:
-                    first_args = next(
-                        iter(args), None
-                    )  # capture first arg to check for `self`
-                    logger_params = [  # does kwargs have any logger
-                        x
-                        for x in kwargs.values()
-                        if isinstance(x, logging.Logger) or isinstance(x, MyLogger)
-                    ] + [  # # does args have any logger
-                        x
-                        for x in args
-                        if isinstance(x, logging.Logger) or isinstance(x, MyLogger)
-                    ]
-                    if hasattr(first_args, "__dict__"):  # is first argument `self`
-                        logger_params = (
-                            logger_params
-                            + [
-                                x
-                                for x in first_args.__dict__.values()  # does class (dict) members have any logger
-                                if isinstance(x, logging.Logger)
-                                or isinstance(x, MyLogger)
-                            ]
-                        )
-                    h_logger = next(
-                        iter(logger_params), MyLogger()
-                    )  # get the next/first/default logger
-                else:
-                    h_logger = my_logger  # logger is passed explicitly to the decorator
-
-                if isinstance(h_logger, MyLogger):
-                    logger = h_logger.get_logger(func.__name__)
-                else:
-                    logger = h_logger
-
-                args_repr = [repr(a) for a in args]
-                kwargs_repr = [f"{k}={v!r}" for k, v in kwargs.items()]
-                signature = ", ".join(args_repr + kwargs_repr)
-                logger.debug(f"function {func.__name__} called with args {signature}")
-            except Exception:
-                pass
-
-            try:
-                result = func(*args, **kwargs)
-                return result
-            except Exception as e:
-                logger.exception(
-                    f"Exception raised in {func.__name__}. exception: {str(e)}"
-                )
-                raise e
-
-        return wrapper
-
-    if _func is None:
-        return decorator_log
-    else:
-        return decorator_log(_func)
+# Future decorator ideas:
+# 
+# 1. @deprecated(reason="", version="")
+#    - Mark functions as deprecated with warnings
+#    - Include migration path and removal version
+#    - Uses warnings.warn() with DeprecationWarning
+#
+# 2. @synchronized(lock=None)
+#    - Thread synchronization for critical sections
+#    - Can share locks between functions or create per-function locks
+#    - Useful for thread-safe operations on shared resources
