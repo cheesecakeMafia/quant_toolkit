@@ -1,3 +1,7 @@
+"""
+description: These are just some helper functions that could be imported to other modules in this library or some other project when required.
+"""
+
 import datetime
 from quant_toolkit.datetime_API import FNOExpiry
 from quant_toolkit.data_API import DBPaths
@@ -97,16 +101,60 @@ def check_last_modified(
         )
 
 
+def file_mod_recently(
+    file_path: str | Path, days: int | datetime.date | datetime.datetime
+) -> bool:
+    """
+    Check if a file's last modification time is older than specified days or date.
+
+    Args:
+        file_path (str | Path): Path to the file to check
+        days (int | date): Number of days or specific date to compare against
+
+    Returns:
+        bool: False if file is older than specified days/date, True otherwise
+
+    Raises:
+        FileNotFoundError: If the specified file doesn't exist
+        TypeError: If days parameter is neither an integer nor a date object
+    """
+    # Convert string path to Path object if necessary
+    file_path = Path(file_path)
+
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+
+    # Get file's last modification time as datetime
+    file_time = datetime.datetime.fromtimestamp(file_path.stat().st_mtime)
+
+    # Handle different types of 'days' parameter
+    if isinstance(days, int):
+        cutoff_time = datetime.datetime.now() - datetime.timedelta(days=days)
+        return file_time > cutoff_time
+    elif isinstance(days, datetime.date) and not isinstance(days, datetime.datetime):
+        # Convert file_time to date for comparison with date object
+        return file_time.date() > days
+    elif isinstance(days, datetime.datetime):
+        return file_time > days
+    else:
+        raise TypeError(
+            "days parameter must be either an int, a datetime.date or a datetime.datetime object"
+        )
+
+
 def main():
     obj = DBPaths().get_index_symbols()
     for sym in obj:
         print(
             f"For symbol {sym}, ticker is {convert_symbol_to_ticker(sym, dt=datetime.date(2025, 1, 30))}"
         )
-    days = datetime.datetime(2025, 1, 30)
-    file_path = r"/home/cheesecake/Quant/quant_toolkit/pyproject.toml"
-    # file_path = r"/home/cheesecake/Quant/quant_toolkit/src/quant_toolkit/data_API.py"
-    print(check_last_modified(file_path, days))
+    days = datetime.datetime(2025, 6, 30)
+    file_path = r"/home/cheesecake/Downloads/quant/quant_toolkit/pyproject.toml"
+    print(file_mod_recently(file_path, days))
+    file_path = (
+        r"/home/cheesecake/Downloads/quant/quant_toolkit/src/quant_toolkit/helper.py"
+    )
+    print(file_mod_recently(file_path, days))
 
 
 if __name__ == "__main__":

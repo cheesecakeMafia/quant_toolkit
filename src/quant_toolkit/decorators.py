@@ -12,7 +12,7 @@ import datetime
 import logging
 
 
-def validate_params(func):
+def validate_params(func) -> Callable:
     @wraps(func)
     def wrapper(*args, **kwargs):
         # Get function signature
