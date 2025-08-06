@@ -1,12 +1,57 @@
-# Quant-Tookit
+# Quant-Toolkit
 
-## This is a private library of packages that contain several tools to implement and interact with quantitative finance projects
+## A private library for quantitative finance projects focused on Indian markets (NSE/BSE)
 
-## This repo uses the tool UV for package management. In case you have got access to this repo via github please make sure to create your own virtual environment and then use the `uv sync` command to sync the virtual environment
+This library provides production-ready tools for interacting with financial data, generating market contracts, and implementing quantitative strategies.
 
-### This lib has the following packages
+## Installation
 
-    1. data_API: Classes, methods and functions which would be useful in interacting with databases.
-    2. datetime_API: Classes, and methods used to generate correct contract ticker, for derivatives contracts of NSE and BSE.
-    3. decorators: This module has some functions to be used as decorators, like validate_params, time_logger, et cetera. 
-    4. helper: This module has some helper functions, like converting a stock name to valid ticker, data_batches so that we don't overwhelm the broker API, and a few more.
+This project uses UV for package management. To set up your environment:
+
+```bash
+# Create and sync virtual environment
+uv sync
+
+# Install in development mode
+uv pip install -e .
+```
+
+## Core Modules
+
+### 1. **market_contracts.py**
+Modern contract ticker generation system for NSE/BSE derivatives:
+- `ContractGenerator` - Generates futures and options contract tickers
+- `MarketCalendar` - Handles market holidays and trading days
+- Support for monthly/weekly expiries, futures, and options
+- Automatic holiday adjustments with web scraping fallback
+
+### 2. **sqlite_data_manager.py** 
+Database interaction for time-series OHLCV financial data:
+- SQLite-based storage (migration to TimeScaleDB planned)
+- Schema: `datetime | open | high | low | close | volume | oi`
+- Context-managed database operations
+- Efficient batch processing
+
+### 3. **decorators.py**
+Production-ready function decorators:
+- `@validate_params` - Runtime type validation
+- `@time_logger` - Performance measurement with logging
+- `@retry` - Configurable retry logic with exponential backoff
+- `@memoize` - LRU caching with TTL support
+- `@rate_limiter` - API rate limiting
+- `@deprecated` - Deprecation warnings
+
+### 4. **quantlogger.py**
+Advanced logging system with comprehensive features:
+- `QuantLogger` - Singleton logger with structured logging
+- Multiple handlers (console, file, rotating)
+- Performance tracking and metrics
+- Context management for tracing
+- Automatic log rotation and cleanup
+
+### 5. **helper.py**
+Utility functions for data processing:
+- `data_batches()` - Splits date ranges into API-friendly chunks
+- Symbol to ticker conversion
+- File timestamp validation
+- Integration with market contracts

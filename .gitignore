@@ -5,6 +5,8 @@ build/
 dist/
 wheels/
 *.egg-info
+.python-version
+.pytest_cache/ 
 
 # Virtual environments
 .venv/
@@ -17,3 +19,17 @@ plan/*
 
 # Logs files and folders
 logs/
+docs/
+
+# env files
+.env*
+
+# test 
+tests/
+pytest.ini
+test*
+htmlcov/
+
+# Other files and folders
+.benchmarks/
+.claude/

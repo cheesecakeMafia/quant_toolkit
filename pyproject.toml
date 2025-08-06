@@ -21,8 +21,93 @@ dependencies = [
     "wheel>=0.45.1",
     "pydantic>=2.0.0",
     "aiofiles>=23.0.0",
+    "python-dotenv>=1.1.1",
+    "pyarrow>=21.0.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "coverage[toml]>=7.4.0",
+    "factory-boy>=3.3.0",
+    "freezegun>=1.4.0",
+    "responses>=0.24.0",
+    "requests-mock>=1.11.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.5.0",
+    "coverage[toml]>=7.4.0",
+    "factory-boy>=3.3.0",
+    "freezegun>=1.4.0",
+    "responses>=0.24.0",
+    "requests-mock>=1.11.0",
+    "pre-commit>=3.6.0",
+    "mypy>=1.8.0",
+    "types-requests>=2.31.0",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# Test configuration
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests", 
+    "performance: marks tests as performance tests",
+    "benchmark: marks tests as benchmark tests",
+    "external: marks tests that require external resources",
+]
+filterwarnings = [
+    "error",
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src/quant_toolkit"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/*_test.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"

@@ -1,12 +1,19 @@
-"""
-description: These are just some helper functions that could be imported to other modules in this library or some other project when required.
+"""Helper functions for data processing, symbol conversion, and file utilities.
+
+This module provides utility functions for:
+- Splitting date ranges into API-friendly batches
+- Converting symbols to fully qualified contract tickers
+- Checking file modification timestamps
+
+These functions are designed to be imported and used across the quant_toolkit
+library and in external projects.
 """
 
 import datetime
-from quant_toolkit.datetime_API import FNOExpiry
-from quant_toolkit.data_API import DBPaths
+from quant_toolkit.market_contracts import MarketContracts
+from quant_toolkit.sqlite_data_manager import DBPaths
 from pathlib import Path
-# Type hints now use Python 3.10+ union operator |
+# Type hints use Python 3.10+ union operator | for cleaner syntax
 
 
 def data_batches(
@@ -14,15 +21,29 @@ def data_batches(
     end_date: datetime.date = datetime.date.today() - datetime.timedelta(1),
     batch_size: int = 95,
 ) -> list[dict]:
-    """_summary_
-    This function takes in a datetime.date object with starting and ending date and then returns a list of dicts.
+    """Split a date range into smaller batches for API optimization.
+    
+    Divides a large date range into smaller chunks to comply with API limitations
+    that restrict data fetching to ~100 days per request. Default batch size is 95
+    days to provide a buffer below the 100-day limit.
+    
     Args:
-     start_date (datetime.date, optional): Defaults to datetime.date(2017,1,1).
-     end_date (datetime.date, optional): Defaults to datetime.date.today()-datetime.timedelta(1).
-     batch_size (int, optional): Defaults to 95. This is because the API can only send 100 days worth of da in one call.
-
+        start_date: Starting date for the range. Defaults to Jan 1, 2017.
+        end_date: Ending date for the range. Defaults to yesterday.
+        batch_size: Maximum days per batch. Defaults to 95 (API limit buffer).
+    
     Returns:
-     list: Returns a list with each element being a dict. The dict has two keys, start and end.
+        List of dictionaries with 'start' and 'end' keys containing date strings
+        in 'YYYY-MM-DD' format. Each dict represents one batch.
+    
+    Example:
+        >>> batches = data_batches(
+        ...     datetime.date(2024, 1, 1),
+        ...     datetime.date(2024, 6, 30),
+        ...     batch_size=30
+        ... )
+        >>> print(batches[0])
+        {'start': '2024-01-01', 'end': '2024-01-31'}
     """
 
     batches = []
@@ -49,13 +70,41 @@ def data_batches(
 
 
 def convert_symbol_to_ticker(
-    symbol: str, dt: datetime.date = datetime.date.today()
+    symbol: str, dt: datetime.date = datetime.date.today(), exchange: str = "NSE"
 ) -> str:
+    """Convert a symbol to a fully qualified futures contract ticker.
+    
+    Transforms generic futures symbols into exchange-specific tickers with
+    proper expiry dates. Supports current month and next month futures.
+    
+    Args:
+        symbol: Base symbol to convert. Futures symbols should contain "_FUT".
+                "_FUT" suffix = current month future
+                "_FUT2" suffix = next month future
+        dt: Reference date for expiry calculation. Defaults to today.
+        exchange: Target exchange ("NSE" or "BSE"). Defaults to "NSE".
+    
+    Returns:
+        For futures: Full ticker with expiry (e.g., "NSE:NIFTY24DECFUT")
+        For non-futures: Original symbol unchanged
+    
+    Raises:
+        AssertionError: If symbol is empty or None
+    
+    Example:
+        >>> convert_symbol_to_ticker("NIFTY_FUT", datetime.date(2024, 12, 15))
+        'NSE:NIFTY24DECFUT'
+        >>> convert_symbol_to_ticker("BANKNIFTY_FUT2", datetime.date(2024, 12, 15))
+        'NSE:BANKNIFTY25JANFUT'
+    """
     assert symbol, print("You need to pass a symbol to convert it to a ticker.")
+    mc = MarketContracts()
+
     if "FUT" in symbol:
+        base_symbol = symbol.replace("_FUT", "").replace("2", "")
         if "2" in symbol:
-            return FNOExpiry().next_month_fut_expiry(symbol, dt)
-        return FNOExpiry().current_month_fut_expiry(symbol, dt)
+            return mc.future(exchange, base_symbol, "next_month", dt)
+        return mc.future(exchange, base_symbol, "current_month", dt)
     else:
         return symbol
 
@@ -63,19 +112,34 @@ def convert_symbol_to_ticker(
 def check_last_modified(
     file_path: str | Path, days: int | datetime.date | datetime.datetime
 ) -> bool:
-    """
-    Check if a file's last modification time is older than specified days or date.
-
+    """Check if a file was last modified before a specified time threshold.
+    
+    Determines whether a file's modification timestamp is older than a given
+    number of days ago or before a specific date/datetime.
+    
     Args:
-        file_path (str | Path): Path to the file to check
-        days (int | date): Number of days or specific date to compare against
-
+        file_path: Path to the file to check. Can be string or Path object.
+        days: Time threshold for comparison. Can be:
+              - int: Number of days ago from now
+              - datetime.date: Specific date to compare against
+              - datetime.datetime: Specific datetime to compare against
+    
     Returns:
-        bool: True if file is older than specified days/date, False otherwise
-
+        True if file modification time is BEFORE (older than) the threshold,
+        False otherwise.
+    
     Raises:
         FileNotFoundError: If the specified file doesn't exist
-        TypeError: If days parameter is neither an integer nor a date object
+        TypeError: If days parameter is not int, date, or datetime
+    
+    Example:
+        >>> # Check if file is older than 7 days
+        >>> check_last_modified("/path/to/file.txt", 7)
+        True  # File was modified more than 7 days ago
+        
+        >>> # Check if file is older than specific date
+        >>> check_last_modified("/path/to/file.txt", datetime.date(2024, 1, 1))
+        False  # File was modified after Jan 1, 2024
     """
     # Convert string path to Path object if necessary
     file_path = Path(file_path)
@@ -104,19 +168,35 @@ def check_last_modified(
 def file_mod_recently(
     file_path: str | Path, days: int | datetime.date | datetime.datetime
 ) -> bool:
-    """
-    Check if a file's last modification time is older than specified days or date.
-
+    """Check if a file was modified recently (after a specified threshold).
+    
+    Determines whether a file's modification timestamp is newer than a given
+    number of days ago or after a specific date/datetime. This is the inverse
+    of check_last_modified().
+    
     Args:
-        file_path (str | Path): Path to the file to check
-        days (int | date): Number of days or specific date to compare against
-
+        file_path: Path to the file to check. Can be string or Path object.
+        days: Time threshold for comparison. Can be:
+              - int: Number of days ago from now
+              - datetime.date: Specific date to compare against
+              - datetime.datetime: Specific datetime to compare against
+    
     Returns:
-        bool: False if file is older than specified days/date, True otherwise
-
+        True if file modification time is AFTER (newer than) the threshold,
+        False otherwise.
+    
     Raises:
         FileNotFoundError: If the specified file doesn't exist
-        TypeError: If days parameter is neither an integer nor a date object
+        TypeError: If days parameter is not int, date, or datetime
+    
+    Example:
+        >>> # Check if file was modified within last 7 days
+        >>> file_mod_recently("/path/to/file.txt", 7)
+        True  # File was modified within the last 7 days
+        
+        >>> # Check if file was modified after specific date
+        >>> file_mod_recently("/path/to/file.txt", datetime.date(2024, 1, 1))
+        True  # File was modified after Jan 1, 2024
     """
     # Convert string path to Path object if necessary
     file_path = Path(file_path)
@@ -143,6 +223,12 @@ def file_mod_recently(
 
 
 def main():
+    """Example usage demonstrating helper functions.
+    
+    Shows how to:
+    - Convert index symbols to tickers
+    - Check file modification times
+    """
     obj = DBPaths().get_index_symbols()
     for sym in obj:
         print(

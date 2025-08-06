@@ -19,21 +19,76 @@ from functools import wraps
 @dataclass
 class QuantLogger:
     """
-    Comprehensive async-first logging decorator with validation.
-    Handles logging, JSON conversion, and all configuration in a single class.
+    Comprehensive async-first logging decorator with Pydantic validation.
+    
+    A powerful logging decorator that seamlessly handles both synchronous and
+    asynchronous functions while providing thread-safe, high-performance logging
+    with rich configuration options and automatic JSON export capabilities.
+
+    Architecture:
+        - **Async-first design**: Uses asyncio.Queue and background tasks for optimal performance
+        - **Dual compatibility**: Automatically detects and wraps both async and sync functions
+        - **Thread-safe I/O**: Per-file asyncio.Lock prevents concurrent write conflicts
+        - **Daily log rotation**: Automatic date-based file naming (module-YYYY-MM-DD.log)
+        - **Background processing**: Non-blocking log writing via dedicated async task
+        - **Pydantic validation**: All configuration validated at instantiation time
 
     Features:
-    - Async-first design with sync function support
-    - Thread-safe file operations using asyncio.Lock
-    - Automatic daily log rotation
-    - Pydantic validation for all configuration
-    - JSON conversion utilities
-    - Global and instance-level configuration
+        - **Configurable logging**: Control what gets logged (args, results, timing, exceptions)
+        - **Multiple log levels**: DEBUG, INFO, WARNING, ERROR, CRITICAL with special error formatting
+        - **Exception handling**: Captures and logs exceptions without re-raising
+        - **Performance timing**: High-resolution execution timing with perf_counter
+        - **Flexible output**: File logging with optional stdout duplication
+        - **JSON export**: Convert human-readable logs to structured JSON format
+        - **Global configuration**: Set defaults for all instances or configure per-instance
 
-    Usage:
-        @QuantLogger(log_args=True, log_time=True)
-        def my_function(x: int) -> int:
-            return x * 2
+    Configuration Fields:
+        name: Optional logger name (defaults to module.function)
+        log_path: Directory for log files (falls back to global or creates 'logs')
+        level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        log_args: Whether to capture and log function arguments
+        log_result: Whether to capture and log function return values
+        log_time: Whether to measure and log execution duration
+        to_stdout: Whether to duplicate log entries to console
+
+    Usage Examples:
+        # Basic usage with timing
+        @QuantLogger(log_time=True)
+        async def fetch_data(symbol: str) -> dict:
+            return {"price": 100.0, "symbol": symbol}
+            
+        # Full logging with arguments and results
+        @QuantLogger(log_args=True, log_result=True, log_time=True, level="DEBUG")
+        def calculate_portfolio_value(positions: list[dict]) -> float:
+            return sum(p["quantity"] * p["price"] for p in positions)
+            
+        # Global configuration
+        QuantLogger.set_global_path(Path("/var/log/quant_toolkit"))
+        
+        # Custom path per instance
+        logger = QuantLogger(log_path=Path("./strategy_logs"), log_args=True)
+        
+        # JSON conversion for analysis
+        json_file = QuantLogger.log_to_json(Path("trading-2025-08-06.log"))
+
+    Thread Safety:
+        This class is fully thread-safe with the following guarantees:
+        - Multiple threads can use decorated functions concurrently
+        - File I/O operations are protected by asyncio.Lock per file
+        - Background writer task handles queue processing safely
+        - Class-level initialization is idempotent and thread-safe
+
+    Performance:
+        - Non-blocking: Log writing happens in background async task
+        - Efficient: Minimal overhead in decorated function execution
+        - Scalable: Queue-based architecture handles high-throughput logging
+        - Memory conscious: Argument/result representations are truncated
+        
+    Error Handling:
+        - Exceptions in decorated functions are caught and logged as ERROR level
+        - Logging failures are handled gracefully without breaking application flow
+        - Background writer task continues processing even if individual writes fail
+        - Sync functions work correctly even without active event loop
     """
 
     # Instance configuration with Pydantic validation
@@ -62,7 +117,19 @@ class QuantLogger:
 
     @validator("log_path")
     def validate_path(cls, v, values):
-        """Validate and create log path if needed"""
+        """Validate and create log path if needed.
+        
+        Args:
+            v: The log_path value being validated.
+            values: Other field values from the dataclass.
+            
+        Returns:
+            Path: The validated path object, or None if no path specified.
+            
+        Note:
+            Creates the directory structure if it doesn't exist.
+            Falls back to global path if instance path is None.
+        """
         # Use instance path, fall back to global path
         path = v or cls._global_log_path
         if path and not path.exists():
@@ -70,13 +137,32 @@ class QuantLogger:
         return path
 
     def __post_init__(self):
-        """Initialize async components after dataclass init"""
+        """Initialize async components after dataclass initialization.
+        
+        This method is called automatically by Pydantic after the dataclass
+        is created. It ensures that class-level async components are initialized
+        exactly once across all instances.
+        
+        Note:
+            This is part of the Pydantic dataclass lifecycle and handles the
+            async/sync dual nature initialization.
+        """
         if not self.__class__._initialized:
             self.__class__._initialize_async_components()
 
     @classmethod
     def _initialize_async_components(cls):
-        """Initialize class-level async components once"""
+        """Initialize class-level async components exactly once.
+        
+        Creates the shared log queue and attempts to start the background
+        writer task if an event loop is available. This method is thread-safe
+        and idempotent.
+        
+        Note:
+            If no event loop is running, the writer task creation is deferred
+            until the first decorated function is called. This handles both
+            async-first and sync contexts gracefully.
+        """
         if not cls._initialized:
             cls._log_queue = asyncio.Queue()
             cls._initialized = True
@@ -90,13 +176,45 @@ class QuantLogger:
 
     @classmethod
     def set_global_path(cls, path: Path):
-        """Set global log directory for all instances"""
+        """Set global log directory for all QuantLogger instances.
+        
+        Args:
+            path: Directory path where log files will be written.
+            
+        Note:
+            This sets a class-level default that applies to all instances
+            unless overridden by the instance's log_path field. Creates
+            the directory structure if it doesn't exist.
+            
+        Example:
+            QuantLogger.set_global_path(Path("/var/log/quant"))
+        """
         cls._global_log_path = path
         if not path.exists():
             path.mkdir(parents=True, exist_ok=True)
 
     def __call__(self, func: Callable) -> Callable:
-        """Main decorator logic - detects async vs sync functions"""
+        """Main decorator entry point that wraps functions with logging.
+        
+        Automatically detects whether the target function is async or sync
+        and applies the appropriate wrapper. This is the core method that
+        makes QuantLogger work as a decorator.
+        
+        Args:
+            func: The function to be decorated with logging capabilities.
+            
+        Returns:
+            Callable: The wrapped function with logging functionality.
+            
+        Example:
+            @QuantLogger(log_args=True, log_time=True)
+            async def my_async_func(x: int) -> int:
+                return x * 2
+                
+            @QuantLogger(log_result=True)
+            def my_sync_func(name: str) -> str:
+                return f"Hello, {name}!"
+        """
         # Ensure writer task is running
         self._ensure_writer_task()
 
@@ -107,7 +225,16 @@ class QuantLogger:
 
     @classmethod
     def _ensure_writer_task(cls):
-        """Ensure background writer task is running"""
+        """Ensure the background log writer task is running.
+        
+        Checks if the writer task exists and is active, creating a new one
+        if necessary. This method is called every time a function is decorated
+        to guarantee log processing capability.
+        
+        Note:
+            If no event loop is running, this method silently returns.
+            The writer task will be created when an event loop becomes available.
+        """
         try:
             loop = asyncio.get_running_loop()
             if cls._writer_task is None or cls._writer_task.done():
@@ -118,7 +245,19 @@ class QuantLogger:
 
     @classmethod
     async def _log_writer(cls):
-        """Background task to write logs from queue"""
+        """Background coroutine that continuously processes log entries from the queue.
+        
+        This is the core async worker that handles all log I/O operations.
+        It runs indefinitely, processing log entries and writing them to files.
+        Gracefully handles cancellation by flushing remaining logs.
+        
+        Raises:
+            asyncio.CancelledError: When the task is cancelled, triggers cleanup.
+            
+        Note:
+            This method runs as a background task and should not be called directly.
+            It's automatically started by _ensure_writer_task().
+        """
         while True:
             try:
                 entry_data = await cls._log_queue.get()
@@ -134,7 +273,24 @@ class QuantLogger:
 
     @classmethod
     async def _write_log_entry(cls, entry_data: dict):
-        """Write single log entry to file and optionally stdout"""
+        """Write a single log entry to file and optionally to stdout.
+        
+        Handles the actual I/O operations for log writing with proper file locking
+        to ensure thread-safety. Creates daily log files named with the pattern:
+        {module_name}-{YYYY-MM-DD}.log
+        
+        Args:
+            entry_data: Dictionary containing log entry information with keys:
+                - timestamp: datetime object for the log entry
+                - module: module name for file naming
+                - log_path: directory path for log files
+                - to_stdout: whether to also print to console
+                - formatted: the formatted log message string
+                
+        Note:
+            Uses asyncio.Lock per file path to prevent concurrent write conflicts.
+            Creates default "logs" directory if no log_path is specified.
+        """
         # Extract data
         timestamp = entry_data["timestamp"]
         module = entry_data["module"]
@@ -178,7 +334,30 @@ class QuantLogger:
         exception: Optional[Exception] = None,
         tb: Optional[str] = None,
     ) -> str:
-        """Format log entry based on level and configuration"""
+        """Format a log entry into a human-readable string.
+        
+        Creates formatted log entries with configurable components based on
+        the logger's settings. Handles special formatting for error levels.
+        
+        Args:
+            timestamp: When the log event occurred.
+            level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
+            module: Module name where the function resides.
+            function: Function name being logged.
+            args: Function positional arguments (if log_args=True).
+            kwargs: Function keyword arguments (if log_args=True).
+            result: Function return value (if log_result=True).
+            duration_ms: Execution duration in milliseconds (if log_time=True).
+            exception: Exception object if an error occurred.
+            tb: Traceback string for exceptions.
+            
+        Returns:
+            str: Formatted log entry string ready for writing.
+            
+        Note:
+            ERROR and CRITICAL levels get special formatting with separators
+            and full exception details. Regular levels use pipe-separated format.
+        """
 
         # Build log parts
         parts = [
@@ -216,7 +395,24 @@ class QuantLogger:
         return " ".join(parts)
 
     def _format_arguments(self, args: tuple, kwargs: dict) -> str:
-        """Format function arguments for logging"""
+        """Format function arguments into a readable string for logging.
+        
+        Converts both positional and keyword arguments into a compact string
+        representation suitable for log entries. Truncates long values to
+        prevent log entries from becoming unwieldy.
+        
+        Args:
+            args: Positional arguments tuple from the decorated function.
+            kwargs: Keyword arguments dict from the decorated function.
+            
+        Returns:
+            str: Formatted argument string in the format "(arg1, arg2, key=value)".
+            
+        Note:
+            Individual argument representations are truncated to 50 characters
+            to prevent extremely long log lines. Uses repr() for safe string
+            representation of all argument types.
+        """
         parts = []
         if args:
             args_str = ", ".join(repr(arg)[:50] for arg in args)
@@ -227,7 +423,23 @@ class QuantLogger:
         return "(" + ", ".join(parts) + ")"
 
     def _create_async_wrapper(self, func: Callable) -> Callable:
-        """Create wrapper for async functions"""
+        """Create a logging wrapper for async functions.
+        
+        Generates an async wrapper that captures function execution details
+        including timing, arguments, results, and exceptions. Handles the
+        async-specific aspects of the logging process.
+        
+        Args:
+            func: The async function to be wrapped.
+            
+        Returns:
+            Callable: An async wrapper function that logs execution details.
+            
+        Note:
+            The wrapper captures exceptions but does not re-raise them,
+            instead logging them as ERROR level entries. This is by design
+            to prevent decorated functions from failing unexpectedly.
+        """
 
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -285,7 +497,23 @@ class QuantLogger:
         return wrapper
 
     def _create_sync_wrapper(self, func: Callable) -> Callable:
-        """Create wrapper for sync functions"""
+        """Create a logging wrapper for synchronous functions.
+        
+        Generates a sync wrapper that captures function execution details
+        and handles the complexities of integrating with the async logging
+        system from a synchronous context.
+        
+        Args:
+            func: The synchronous function to be wrapped.
+            
+        Returns:
+            Callable: A sync wrapper function that logs execution details.
+            
+        Note:
+            Handles the async/sync bridge by attempting to use an existing
+            event loop or creating one if necessary. The wrapper captures
+            exceptions but does not re-raise them, logging them as ERROR entries.
+        """
 
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -350,7 +578,20 @@ class QuantLogger:
         return wrapper
 
     async def _write_sync_fallback(self, entry_data: dict):
-        """Fallback for sync functions when no event loop exists"""
+        """Fallback method for handling log entries from sync functions.
+        
+        This method is called when a sync function needs to log but no
+        event loop is currently running. It creates a temporary event loop
+        to handle the async logging operations.
+        
+        Args:
+            entry_data: Dictionary containing the log entry information
+                      to be processed and written.
+                      
+        Note:
+            This method ensures that sync functions can still participate
+            in the async logging system, even when called from pure sync contexts.
+        """
         await self._log_queue.put(entry_data)
         # Ensure writer task processes it
         if self._writer_task is None:
@@ -358,7 +599,18 @@ class QuantLogger:
 
     @classmethod
     async def flush_logs(cls):
-        """Force flush all pending logs"""
+        """Force immediate processing of all pending log entries.
+        
+        Processes all queued log entries synchronously, ensuring they are
+        written to disk before the method returns. Useful for cleanup or
+        ensuring logs are persisted before application shutdown.
+        
+        Note:
+            This method bypasses the normal async queue processing and
+            handles all pending entries immediately. Should be called
+            during application shutdown or when immediate log persistence
+            is required.
+        """
         if cls._log_queue:
             while not cls._log_queue.empty():
                 entry_data = cls._log_queue.get_nowait()
@@ -414,7 +666,23 @@ class QuantLogger:
 
     @staticmethod
     def _parse_log_line(line: str) -> Optional[dict]:
-        """Parse a single log line into dictionary"""
+        """Parse a single pipe-separated log line into a dictionary.
+        
+        Parses standard log lines that follow the format:
+        "timestamp | level | module.function | Args: (...) | Duration: Xms | Result: ..."
+        
+        Args:
+            line: A single log line string to be parsed.
+            
+        Returns:
+            Optional[dict]: Parsed log entry as dictionary with keys like
+                          'timestamp', 'level', 'function', 'args', 'duration_ms', 'result',
+                          or None if parsing fails.
+                          
+        Note:
+            This method handles the standard pipe-separated format used by
+            QuantLogger. Malformed lines return None rather than raising exceptions.
+        """
         try:
             parts = line.split(" | ")
             if len(parts) < 3:
@@ -437,7 +705,24 @@ class QuantLogger:
 
     @staticmethod
     def _parse_error_block(lines: list[str]) -> dict:
-        """Parse an error block into dictionary"""
+        """Parse an error block (between separator lines) into a dictionary.
+        
+        Error blocks are special multi-line entries that contain the main log line,
+        exception details, and full traceback information formatted between
+        separator lines of equal signs.
+        
+        Args:
+            lines: List of lines from an error block (without the separators).
+            
+        Returns:
+            dict: Parsed error entry containing standard log fields plus
+                 'exception' and 'traceback' fields if present.
+                 
+        Note:
+            This method handles the special formatting used for ERROR and CRITICAL
+            level entries, extracting both the main log information and detailed
+            exception data.
+        """
         entry = {}
         for line in lines:
             if " | " in line:
