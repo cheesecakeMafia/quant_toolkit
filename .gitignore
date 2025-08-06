@@ -33,3 +33,4 @@ htmlcov/
 # Other files and folders
 .benchmarks/
 .claude/
+CLAUDE.md
