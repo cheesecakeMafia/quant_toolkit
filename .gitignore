@@ -13,6 +13,7 @@ wheels/
 
 # Planning files and folder
 plan/*
+image/*
 
 # Linters and formatter
 .ruff*
@@ -29,6 +30,7 @@ tests/
 pytest.ini
 test*
 htmlcov/
+.coverage*
 
 # Other files and folders
 .benchmarks/
