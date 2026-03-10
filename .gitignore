@@ -26,7 +26,6 @@ docs/
 .env*
 
 # test 
-tests/
 pytest.ini
 test*
 htmlcov/
@@ -36,3 +35,4 @@ htmlcov/
 .benchmarks/
 .claude/
 CLAUDE.md
+plan/new_features.md

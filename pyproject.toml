@@ -7,7 +7,7 @@ version = "0.1.0"
 description = "A private library of packages that contain several tools to implement and interact with quantitative finance projects."
 readme = "README.md"
 authors = [
-    { name = "cheesecakeMafia", email = "f2013359@gmail.com" }
+    { name = "cheesecakeMafia", email = "cheesecakemafia07@gmail.com" }
 ]
 requires-python = ">=3.12"
 dependencies = [
