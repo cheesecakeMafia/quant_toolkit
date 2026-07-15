@@ -25,9 +25,8 @@ docs/
 # env files
 .env*
 
-# test 
+# test
 pytest.ini
-test*
 htmlcov/
 .coverage*
 
@@ -36,3 +35,6 @@ htmlcov/
 .claude/
 CLAUDE.md
 plan/new_features.md
+
+# Local scratch module, not part of the library
+src/quant_toolkit/test.py

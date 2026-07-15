@@ -13,7 +13,7 @@ requires-python = ">=3.12"
 dependencies = [
     "hatchling>=1.27.0",
     "line-profiler>=4.2.0",
-    "lxml>=5.3.0",
+    "lxml>=6.1.0",
     "pandas>=2.2.3",
     "polars>=1.19.0",
     "ruff>=0.9.1",
@@ -21,17 +21,17 @@ dependencies = [
     "wheel>=0.46.2",
     "pydantic>=2.0.0",
     "aiofiles>=23.0.0",
-    "python-dotenv>=1.1.1",
-    "pyarrow>=21.0.0",
-    "aiohttp>=3.13.3",
-    "urllib3>=2.6.3",
+    "python-dotenv>=1.2.2",
+    "pyarrow>=23.0.1",
+    "aiohttp>=3.13.4",
+    "urllib3>=2.7.0",
     "virtualenv>=20.36.1",
     "filelock>=3.20.3",
 ]
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8.0.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0.0",
     "pytest-benchmark>=4.0.0",
     "pytest-asyncio>=0.23.0",
@@ -44,7 +44,7 @@ test = [
     "requests-mock>=1.11.0",
 ]
 dev = [
-    "pytest>=8.0.0",
+    "pytest>=9.0.3",
     "pytest-cov>=4.0.0",
     "pytest-benchmark>=4.0.0",
     "pytest-asyncio>=0.23.0",
@@ -63,6 +63,14 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# Security floors for transitive dependencies (not direct deps; enforced on every resolve)
+[tool.uv]
+constraint-dependencies = [
+    "requests>=2.33.0",
+    "pygments>=2.20.0",
+    "idna>=3.15",
+]
 
 # Test configuration
 [tool.pytest.ini_options]
