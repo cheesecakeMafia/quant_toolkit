@@ -94,7 +94,10 @@ class ConnectionPool:
         Returns:
             Configured SQLite connection
         """
-        conn = sqlite3.connect(self.db_path, timeout=self.timeout)
+        # Pooled connections move between threads; the pool hands each to one at a time
+        conn = sqlite3.connect(
+            self.db_path, timeout=self.timeout, check_same_thread=False
+        )
         # Optimize for performance
         conn.execute("PRAGMA journal_mode=WAL")  # Write-ahead logging
         conn.execute("PRAGMA synchronous=NORMAL")  # Balance safety/speed

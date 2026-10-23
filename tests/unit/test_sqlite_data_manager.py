@@ -158,6 +158,28 @@ class TestConnectionPool:
                     pass  # Ignore thread-related closure errors
             pool._created_connections = 0
 
+    def test_connection_reused_across_threads(self, temp_database):
+        """Test a connection created in one thread is reused and closed in another."""
+        pool = ConnectionPool(temp_database.db_path, pool_size=2)
+        created = []
+
+        def worker():
+            conn = pool.get_connection()
+            created.append(conn)
+            pool.return_connection(conn)
+
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+
+        # Main thread should get the same healthy connection back, not a new one
+        conn = pool.get_connection()
+        assert conn is created[0]
+        assert pool._created_connections == 1
+
+        pool.return_connection(conn)
+        pool.close_all()  # Must not raise sqlite3.ProgrammingError
+
     def test_close_all_connections(self, temp_database):
         """Test closing all connections in pool."""
         pool = ConnectionPool(temp_database.db_path, pool_size=3)
